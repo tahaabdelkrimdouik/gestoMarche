@@ -1,65 +1,312 @@
-import Image from "next/image";
+'use client'
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AnimatePresence } from 'framer-motion';
+import { supabase } from '@/lib/supabaseClient'; // Needed for mutations only
+import { Search } from 'lucide-react';
+
+// COMPONENTS
+import Header from '@/components/Header';
+import BottomNav from '@/components/BottomNav';
+import StockFilters from '@/components/StockFilters';
+import ProductCard from '@/components/ProductCard';
+import SupplierCard from '@/components/SupplierCard';
+import SupplierDrawer from '@/components/SupplierDrawer';
+import SettingsScreen from '@/components/SettingsScreen';
+import CatalogueScreen from '@/components/CatalogueScreen';
+import EmptyState from '@/components/EmptyState';
+import { Input } from '@/components/ui/input';
+
+// TYPES & QUERIES
+import type { Market, Product, Supplier, StockStatus } from '@/lib/types';
+// adjust the path below to where your queries.ts file is located
+import { fetchProducts, fetchSuppliers, fetchMarkets } from '@/lib/queries'; 
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState('stock');
+  const [selectedMarket, setSelectedMarket] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const queryClient = useQueryClient();
+
+  // --- 1. FETCH DATA (USING YOUR QUERIES FILE) ---
+  
+  const { data: markets = [] } = useQuery<Market[]>({
+    queryKey: ['markets'],
+    queryFn: fetchMarkets,
+  });
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['products'],
+    queryFn: fetchProducts,
+  });
+  const { data: suppliers = [] } = useQuery<Supplier[]>({
+    queryKey: ['suppliers'],
+    queryFn: fetchSuppliers,
+  });
+
+  // --- 2. MUTATIONS (Stay local for now) ---
+  
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: StockStatus }) => {
+      await supabase.from('products').update({ status }).eq('id', id);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+  });
+
+  const createProductMutation = useMutation({
+    mutationFn: async (newProduct: any) => {
+      // Map UI fields to DB schema
+      const payload: any = {
+        name: newProduct.name,
+        status: newProduct.status,
+        supplier_id: newProduct.supplier_id || null,
+        category: newProduct.category || null,
+        purchase_price: newProduct.prix_achat !== undefined ? newProduct.prix_achat : newProduct.purchase_price,
+        sale_price: newProduct.prix_vente !== undefined ? newProduct.prix_vente : newProduct.sale_price,
+      };
+
+      // Insert product first
+      const { data: inserted, error: insertErr } = await supabase.from('products').insert([payload]).select().single();
+      if (insertErr) throw insertErr;
+
+      // If a market was provided from the form (single market), insert relation into product_markets
+      const marketId = newProduct.market_id;
+      if (marketId) {
+        await supabase.from('product_markets').insert([{ product_id: inserted.id, market_id: marketId }]);
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+  });
+
+const updateProductMutation = useMutation({
+  mutationFn: async (product: Product) => {
+    const { product_markets, ...productData } = product;
+
+    // 1️⃣ Update product (WITHOUT relations)
+    const { error: productError } = await supabase
+      .from('products')
+      .update({
+        name: productData.name,
+        purchase_price: productData.purchase_price,
+        sale_price: productData.sale_price,
+        status: productData.status,
+        supplier_id: productData.supplier_id,
+      })
+      .eq('id', productData.id);
+
+    if (productError) throw productError;
+
+    // 2️⃣ Sync markets (relation table)
+    await supabase
+      .from('product_markets')
+      .delete()
+      .eq('product_id', productData.id);
+
+    if (product_markets?.length) {
+      const { error: marketsError } = await supabase
+        .from('product_markets')
+        .insert(
+          product_markets.map(pm => ({
+            product_id: productData.id,
+            market_id: pm.market_id,
+          }))
+        );
+
+      if (marketsError) throw marketsError;
+    }
+  },
+
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+  },
+});
+
+
+  const deleteProductMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase.from('products').delete().eq('id', id);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+  });
+
+  // Supplier mutations...
+  const createSupplierMutation = useMutation({
+    mutationFn: async (data: any) => supabase.from('suppliers').insert([data]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+  });
+  const updateSupplierMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => supabase.from('suppliers').update(data).eq('id', id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+  });
+  const deleteSupplierMutation = useMutation({
+    mutationFn: async (id: string) => supabase.from('suppliers').delete().eq('id', id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+  });
+
+  // --- 3. FILTERING LOGIC ---
+
+  // Set default market
+  useEffect(() => {
+    if (markets.length > 0 && !selectedMarket) {
+      setTimeout(() => setSelectedMarket(markets[0].id), 0);
+    }
+  }, [markets, selectedMarket]);
+
+  // Filter products by MARKET using the new relation array
+  const marketProducts = useMemo(() => {
+    if (!selectedMarket) return products;
+    
+    return products.filter(p => {
+      // Check if product_markets exists and contains the selected market ID
+      return p.product_markets?.some((pm: any) => pm.market_id === selectedMarket);
+    });
+  }, [products, selectedMarket]);
+
+  // Global Filter (Search + Status)
+  const filteredProducts = useMemo(() => {
+    let result = marketProducts;
+    
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(p => p.name.toLowerCase().includes(q));
+    }
+
+    if (stockFilter === 'low') result = result.filter(p => p.status === 'low');
+    else if (stockFilter === 'out') result = result.filter(p => p.status === 'out');
+    
+    return result;
+  }, [marketProducts, searchQuery, stockFilter]);
+
+  // Supplier Filters
+  const filteredSuppliers = useMemo(() => {
+    if (!supplierSearch) return suppliers;
+    const q = supplierSearch.toLowerCase();
+    return suppliers.filter((s) => (s.name ?? '').toLowerCase().includes(q));
+  }, [suppliers, supplierSearch]);
+
+  const getSupplierAlertCount = (supplierId: string): number => {
+    return marketProducts.filter(
+      (p) => p.supplier_id === supplierId && (p.status === 'low' || p.status === 'out')
+    ).length;
+  };
+
+  const supplierProducts = useMemo(() => {
+    if (!selectedSupplier) return [];
+    return marketProducts.filter(p => p.supplier_id === selectedSupplier.id);
+  }, [selectedSupplier, marketProducts]);
+
+
+  // --- 4. RENDER ---
+
+  const handleStatusChange = (productId: string, newStatus: StockStatus) => updateStatusMutation.mutate({ id: productId, status: newStatus });
+  const handleSupplierClick = (supplier: Supplier) => { setSelectedSupplier(supplier); setIsDrawerOpen(true); };
+  
+  // Wrapper handlers
+  const handleCreateProduct = (data: any) => createProductMutation.mutate(data);
+  const handleUpdateProduct = (id: string, data: Partial<Product>) => updateProductMutation.mutate({ id, data });
+  const handleDeleteProduct = (id: string) => deleteProductMutation.mutate(id);
+  const handleCreateSupplier = (data: any) => createSupplierMutation.mutate(data);
+  const handleUpdateSupplier = (id: string, data: any) => updateSupplierMutation.mutate({ id, data });
+  const handleDeleteSupplier = (id: string) => deleteSupplierMutation.mutate(id);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-gray-50">
+      {/* HEADER */}
+      {activeTab !== 'settings' && activeTab !== 'catalogue' && (
+        <Header
+          markets={markets}
+          selectedMarket={selectedMarket}
+          onMarketChange={setSelectedMarket}
+          searchQuery={activeTab === 'stock' ? searchQuery : ''}
+          onSearchChange={activeTab === 'stock' ? setSearchQuery : () => {}}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+      )}
+
+      {/* MAIN CONTENT */}
+      <main className="pb-24 sm:pb-28">
+        
+        {/* TAB: STOCK */}
+        {activeTab === 'stock' && (
+          <>
+            <StockFilters activeFilter={stockFilter} onFilterChange={setStockFilter} />
+            <div className="px-4 space-y-3 sm:space-y-4">
+              <AnimatePresence mode="popLayout">
+                {filteredProducts.length === 0 ? (
+                  <EmptyState
+                    type={searchQuery ? 'search' : 'products'}
+                    title={searchQuery ? 'Aucun résultat' : 'Aucun produit'}
+                    description={searchQuery ? `Aucun résultat pour "${searchQuery}"` : 'Ajoutez des produits pour commencer'}
+                  />
+                ) : (
+                  filteredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} onStatusChange={handleStatusChange} />
+                  ))
+                )}
+              </AnimatePresence>
+            </div>
+          </>
+        )}
+
+        {/* TAB: SUPPLIERS */}
+        {activeTab === 'suppliers' && (
+          <div className="px-4 py-4 space-y-3 sm:space-y-4">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Input
+                placeholder="Rechercher un fournisseur..."
+                value={supplierSearch}
+                onChange={(e) => setSupplierSearch(e.target.value)}
+                className="w-full min-h-[48px] pl-12 pr-4 border-0 bg-white rounded-xl shadow-sm"
+              />
+            </div>
+            <div className="space-y-3">
+              <AnimatePresence mode="popLayout">
+                {filteredSuppliers.map((supplier) => (
+                  <SupplierCard
+                    key={supplier.id}
+                    supplier={supplier}
+                    alertCount={getSupplierAlertCount(supplier.id)}
+                    onClick={() => handleSupplierClick(supplier)}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: CATALOGUE */}
+        {activeTab === 'catalogue' && (
+          <CatalogueScreen
+            products={products}
+            suppliers={suppliers}
+            markets={markets}
+            onCreateProduct={handleCreateProduct}
+            onUpdateProduct={handleUpdateProduct}
+            onDeleteProduct={handleDeleteProduct}
+            onCreateSupplier={handleCreateSupplier}
+            onUpdateSupplier={handleUpdateSupplier}
+            onDeleteSupplier={handleDeleteSupplier}
+          />
+        )}
+
+        {/* TAB: SETTINGS */}
+        {activeTab === 'settings' && <SettingsScreen />}
       </main>
+
+      {/* FOOTER */}
+      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+      <SupplierDrawer
+        isOpen={isDrawerOpen}
+        supplier={selectedSupplier}
+        products={supplierProducts}
+        onClose={() => { setIsDrawerOpen(false); setSelectedSupplier(null); }}
+      />
     </div>
   );
 }
