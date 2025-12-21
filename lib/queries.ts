@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
-import type { Product,Category,Supplier, Market  } from "@/lib/types";
+import type { Product, ProductWithMarkets, Category, Supplier, Market  } from "@/lib/types";
 
-export const fetchProducts = async (): Promise<Product[]> => {
+export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
   // First fetch products (avoid nesting relations in the same select to prevent schema-cache errors)
   const { data: products, error: prodErr } = await supabase
     .from('products')
@@ -22,7 +22,7 @@ export const fetchProducts = async (): Promise<Product[]> => {
   if (relErr) {
     // If the relation table doesn't exist or fails, return products without relations
     console.warn('Could not fetch product_markets relations:', relErr.message || relErr);
-    return items.map((p) => ({ ...p, product_markets: [] })) as Product[];
+    return items.map((p) => ({ ...p, product_markets: [] })) as ProductWithMarkets[];
   }
 
   const relsByProduct: Record<string, { market_id: string }[]> = {};
@@ -34,7 +34,7 @@ export const fetchProducts = async (): Promise<Product[]> => {
   return items.map((p) => ({
     ...p,
     product_markets: relsByProduct[p.id] || [],
-  })) as Product[];
+  })) as ProductWithMarkets[];
 };
 
 

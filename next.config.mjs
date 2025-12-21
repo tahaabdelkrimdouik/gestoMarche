@@ -11,11 +11,6 @@ const withPWA = nextPWA({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    turbopack: {
-      // You can leave this empty if you don't need custom rules
-    }
-  }
 }
 
 export default withPWA(nextConfig)

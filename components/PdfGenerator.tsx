@@ -2,9 +2,10 @@
  * Simule la génération d'un PDF pour un bon de commande fournisseur
  * Dans une vraie app, vous utiliseriez une librairie comme jsPDF ou pdfmake
  */
+import type { Supplier, Product } from '@/lib/types';
 
-export const generatePurchaseOrderPDF = (supplier, products, company = {}) => {
-  const totalHT = products.reduce((sum, p) => sum + (p.prix_achat || 0), 0);
+export const generatePurchaseOrderPDF = (supplier: Supplier, products: Product[], company: Record<string, any> = {}) => {
+  const totalHT = products.reduce((sum, p) => sum + (p.purchase_price || 0), 0);
   const tva = totalHT * 0.20; // TVA 20%
   const totalTTC = totalHT + tva;
 
@@ -20,8 +21,7 @@ N° Commande: CMD-${Date.now()}
 
 FOURNISSEUR:
 ${supplier.name}
-${supplier.phone || ''}
-${supplier.email || ''}
+${supplier.phone_number || ''}
 
 ENTREPRISE:
 ${company.name || 'Mon Stock'}
@@ -34,9 +34,8 @@ PRODUITS À COMMANDER:
 
 ${products.map((p, i) => `
   ${i + 1}. ${p.name}
-     Catégorie: ${p.category || 'N/A'}
      État: ${p.status === 'out' ? '❌ Épuisé' : '⚠️ Presque fini'}
-     Prix unitaire HT: ${(p.prix_achat || 0).toFixed(2)} €
+     Prix unitaire HT: ${(p.purchase_price || 0).toFixed(2)} €
 `).join('\n')}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -74,9 +73,8 @@ Merci pour votre service !
     orderNumber: `CMD-${Date.now()}`,
     products: products.map(p => ({
       name: p.name,
-      category: p.category,
       status: p.status,
-      prix_achat: p.prix_achat,
+      purchase_price: p.purchase_price,
     })),
     totals: {
       totalHT: totalHT.toFixed(2),
@@ -91,7 +89,7 @@ Merci pour votre service !
  * Simule le téléchargement du PDF
  * Dans une vraie app, cela générerait et téléchargerait un fichier PDF
  */
-export const downloadPDF = (pdfData) => {
+export const downloadPDF = (pdfData: any) => {
   // Créer un blob de texte pour simuler un téléchargement
   const blob = new Blob([pdfData.pdfPreview], { type: 'text/plain' });
   const url = window.URL.createObjectURL(blob);

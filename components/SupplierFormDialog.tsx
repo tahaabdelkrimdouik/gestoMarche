@@ -9,20 +9,22 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, Phone, Mail } from 'lucide-react';
-import { Supplier } from '@/lib/types';
+import { Truck, Phone } from 'lucide-react';
+import type { Supplier } from '@/lib/types';
+
 interface SupplierFormDialogProps {
-  isOpen: boolean;                    // L'ID du filtre actif (ex: 'all')
-  onClose:() => void;   // Une fonction qui change le filtre
-  onSubmit:() => void;   // Une fonction qui change le filtre
-  supplier:Supplier | null;   // Une fonction qui change le filtre
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  supplier?: Supplier | null;
 }
+
 export default function SupplierFormDialog({ 
   isOpen, 
   onClose, 
   onSubmit, 
   supplier = null
-}:SupplierFormDialogProps) {
+}: SupplierFormDialogProps) {
   const [formData, setFormData] = useState({
     name: '',
     phone_number: ''
@@ -48,7 +50,7 @@ export default function SupplierFormDialog({
     }
   }, [supplier]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
   };
@@ -88,29 +90,13 @@ export default function SupplierFormDialog({
               <Input
                 id="phone"
                 type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                value={formData.phone_number}
+                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                 placeholder="+33 6 12 34 56 78"
                 className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
               />
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="contact@fournisseur.fr"
-                className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
-              />
-            </div>
-          </div>
-
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <Button
               type="button"

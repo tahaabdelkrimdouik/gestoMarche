@@ -34,11 +34,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { Market, Product, Supplier } from '@/lib/types';
+import type { Market, Product, ProductWithMarkets, Supplier } from '@/lib/types';
 
 // 1. Interface des Props
 interface CatalogueScreenProps {
-  products: Product[];
+  products: ProductWithMarkets[];
   suppliers: Supplier[];
   markets: Market[];
   onCreateProduct: (data: any) => void; // On utilise any temporairement pour les forms, ou Omit<Product, 'id'>
@@ -65,7 +65,7 @@ export default function CatalogueScreen({
   const [searchQuery, setSearchQuery] = useState('');
   
   // Correction: Typage explicite pour permettre l'objet ou null
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductWithMarkets | null>(null);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
@@ -128,7 +128,7 @@ export default function CatalogueScreen({
     }
   };
 
-  const handleEditProduct = (product: Product) => {
+  const handleEditProduct = (product: ProductWithMarkets) => {
     setEditingProduct(product);
     setIsProductDialogOpen(true);
   };
@@ -245,15 +245,7 @@ export default function CatalogueScreen({
                       return (
                         <TableRow key={product.id} className="hover:bg-gray-50">
                           <TableCell className="min-w-[120px]">
-                            <div>
-                              <div className="font-medium text-gray-900 text-sm">{product.name}</div>
-                              {/* Affichage des catégories si disponible */}
-                              {product.category && product.category.length > 0 && (
-                                <div className="text-xs text-gray-500">
-                                  {product.category.map(c => c.name).join(', ')}
-                                </div>
-                              )}
-                            </div>
+                            <div className="font-medium text-gray-900 text-sm">{product.name}</div>
                           </TableCell>
                           <TableCell className="text-gray-600 text-sm hidden sm:table-cell">
                              {getMarketName(firstMarketId)}
@@ -379,7 +371,7 @@ export default function CatalogueScreen({
 
       {/* Floating Action Button */}
       {/* Assurez-vous que ce composant existe, sinon remplacez-le par un bouton standard */}
-      <FloatingActionButton onClick={handleAddClick} />
+      <FloatingActionButton label="Ajouter" onClick={handleAddClick} />
 
       {/* Product Dialog */}
       {isProductDialogOpen && (

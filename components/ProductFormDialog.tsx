@@ -17,6 +17,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Package, Euro, TrendingUp } from 'lucide-react';
+import type { ProductWithMarkets, Market, Supplier } from '@/lib/types';
+
+interface ProductFormDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  product?: ProductWithMarkets | null;
+  markets: Market[];
+  suppliers: Supplier[];
+}
 
 export default function ProductFormDialog({ 
   isOpen, 
@@ -25,46 +35,48 @@ export default function ProductFormDialog({
   product = null,
   markets = [],
   suppliers = []
-}) {
+}: ProductFormDialogProps) {
   const [formData, setFormData] = useState({
     name: '',
-    market_id: '',
     supplier_id: '',
-    category: '',
-    prix_achat: '',
-    prix_vente: '',
+    purchase_price: '',
+    sale_price: '',
     status: 'available',
   });
 
   useEffect(() => {
     if (product) {
-      setFormData(product);
+      setFormData({
+        name: product.name,
+        supplier_id: product.supplier_id || '',
+        purchase_price: product.purchase_price?.toString() || '',
+        sale_price: product.sale_price?.toString() || '',
+        status: product.status,
+      });
     } else {
       setFormData({
         name: '',
-        market_id: markets[0]?.id || '',
         supplier_id: '',
-        category: '',
-        prix_achat: '',
-        prix_vente: '',
+        purchase_price: '',
+        sale_price: '',
         status: 'available',
       });
     }
   }, [product, markets]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const dataToSubmit = {
       ...formData,
-      prix_achat: formData.prix_achat ? parseFloat(formData.prix_achat) : undefined,
-      prix_vente: formData.prix_vente ? parseFloat(formData.prix_vente) : undefined,
+      purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : undefined,
+      sale_price: formData.sale_price ? parseFloat(formData.sale_price) : undefined,
     };
     onSubmit(dataToSubmit);
   };
 
   const calculateMargin = () => {
-    const achat = parseFloat(formData.prix_achat) || 0;
-    const vente = parseFloat(formData.prix_vente) || 0;
+    const achat = parseFloat(formData.purchase_price) || 0;
+    const vente = parseFloat(formData.sale_price) || 0;
     if (achat === 0 || vente === 0) return null;
     const margin = ((vente - achat) / vente) * 100;
     return margin.toFixed(1);
@@ -102,25 +114,6 @@ export default function ProductFormDialog({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="market" className="text-sm">Marché *</Label>
-              <Select
-                value={formData.market_id}
-                onValueChange={(value) => setFormData({ ...formData, market_id: value })}
-              >
-                <SelectTrigger className="min-h-[48px] rounded-xl touch-manipulation">
-                  <SelectValue placeholder="Choisir" />
-                </SelectTrigger>
-                <SelectContent>
-                  {markets.map((market) => (
-                    <SelectItem key={market.id} value={market.id}>
-                      {market.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="supplier" className="text-sm">Fournisseur</Label>
               <Select
                 value={formData.supplier_id}
@@ -140,29 +133,18 @@ export default function ProductFormDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category" className="text-sm">Catégorie</Label>
-            <Input
-              id="category"
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              placeholder="Ex: Légumes, Épicerie..."
-              className="min-h-[48px] rounded-xl touch-manipulation"
-            />
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="prix_achat" className="text-sm">Prix d'achat (€)</Label>
+              <Label htmlFor="purchase_price" className="text-sm">Prix d'achat (€)</Label>
               <div className="relative">
                 <Euro className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  id="prix_achat"
+                  id="purchase_price"
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.prix_achat}
-                  onChange={(e) => setFormData({ ...formData, prix_achat: e.target.value })}
+                  value={formData.purchase_price}
+                  onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
                   placeholder="0.00"
                   className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
                 />
@@ -170,16 +152,16 @@ export default function ProductFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="prix_vente" className="text-sm">Prix de vente (€)</Label>
+              <Label htmlFor="sale_price" className="text-sm">Prix de vente (€)</Label>
               <div className="relative">
                 <Euro className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  id="prix_vente"
+                  id="sale_price"
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.prix_vente}
-                  onChange={(e) => setFormData({ ...formData, prix_vente: e.target.value })}
+                  value={formData.sale_price}
+                  onChange={(e) => setFormData({ ...formData, sale_price: e.target.value })}
                   placeholder="0.00"
                   className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
                 />

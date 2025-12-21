@@ -18,7 +18,7 @@ import EmptyState from '@/components/EmptyState';
 import { Input } from '@/components/ui/input';
 
 // TYPES & QUERIES
-import type { Market, Product, Supplier, StockStatus } from '@/lib/types';
+import type { Market, Product, ProductWithMarkets, Supplier, StockStatus } from '@/lib/types';
 // adjust the path below to where your queries.ts file is located
 import { fetchProducts, fetchSuppliers, fetchMarkets } from '@/lib/queries'; 
 
@@ -40,7 +40,7 @@ export default function Home() {
     queryFn: fetchMarkets,
   });
 
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: products = [] } = useQuery<ProductWithMarkets[]>({
     queryKey: ['products'],
     queryFn: fetchProducts,
   });
@@ -84,7 +84,7 @@ export default function Home() {
   });
 
 const updateProductMutation = useMutation({
-  mutationFn: async (product: Product) => {
+  mutationFn: async (product: ProductWithMarkets) => {
     const { product_markets, ...productData } = product;
 
     // 1️⃣ Update product (WITHOUT relations)
@@ -208,7 +208,16 @@ const updateProductMutation = useMutation({
   
   // Wrapper handlers
   const handleCreateProduct = (data: any) => createProductMutation.mutate(data);
-  const handleUpdateProduct = (id: string, data: Partial<Product>) => updateProductMutation.mutate({ id, data });
+  const handleUpdateProduct = (id: string, data: Partial<Product>) => {
+    // Find the current product to get its product_markets data
+    const currentProduct = products.find(p => p.id === id);
+    if (currentProduct) {
+      updateProductMutation.mutate({
+        ...currentProduct,
+        ...data,
+      });
+    }
+  };
   const handleDeleteProduct = (id: string) => deleteProductMutation.mutate(id);
   const handleCreateSupplier = (data: any) => createSupplierMutation.mutate(data);
   const handleUpdateSupplier = (id: string, data: any) => updateSupplierMutation.mutate({ id, data });
@@ -302,8 +311,8 @@ const updateProductMutation = useMutation({
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       <SupplierDrawer
-        isOpen={isDrawerOpen}
-        supplier={selectedSupplier}
+        isOpen={isDrawerOpen && selectedSupplier !== null}
+        supplier={selectedSupplier!}
         products={supplierProducts}
         onClose={() => { setIsDrawerOpen(false); setSelectedSupplier(null); }}
       />
