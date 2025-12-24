@@ -16,8 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Package, Euro, TrendingUp } from 'lucide-react';
-import type { ProductWithMarkets, Market, Supplier } from '@/lib/types';
+import { Package, Euro, TrendingUp, Hash } from 'lucide-react';
+import type { ProductWithMarkets, Market, Supplier, Category } from '@/lib/types';
 
 interface ProductFormDialogProps {
   isOpen: boolean;
@@ -26,19 +26,23 @@ interface ProductFormDialogProps {
   product?: ProductWithMarkets | null;
   markets: Market[];
   suppliers: Supplier[];
+  categories: Category[];
 }
 
-export default function ProductFormDialog({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
+export default function ProductFormDialog({
+  isOpen,
+  onClose,
+  onSubmit,
   product = null,
   markets = [],
-  suppliers = []
+  suppliers = [],
+  categories = []
 }: ProductFormDialogProps) {
   const [formData, setFormData] = useState({
     name: '',
+    code: '',
     supplier_id: '',
+    category_id: '',
     market_id: '',
     purchase_price: '',
     sale_price: '',
@@ -49,7 +53,9 @@ export default function ProductFormDialog({
     if (product) {
       setFormData({
         name: product.name,
+        code: product.code || '',
         supplier_id: product.supplier_id || '',
+        category_id: product.category_id || '',
         market_id: product.product_markets?.[0]?.market_id || '',
         purchase_price: product.purchase_price?.toString() || '',
         sale_price: product.sale_price?.toString() || '',
@@ -58,14 +64,16 @@ export default function ProductFormDialog({
     } else {
       setFormData({
         name: '',
+        code: '',
         supplier_id: '',
+        category_id: '',
         market_id: '',
         purchase_price: '',
         sale_price: '',
         status: 'available',
       });
     }
-  }, [product, markets]);
+  }, [product, markets, categories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,6 +123,20 @@ export default function ProductFormDialog({
             />
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="code" className="text-sm">Code produit</Label>
+            <div className="relative">
+              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                id="code"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                placeholder="Ex: TOM001"
+                className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="supplier" className="text-sm">Fournisseur</Label>
@@ -136,24 +158,44 @@ export default function ProductFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="market" className="text-sm">Marché *</Label>
+              <Label htmlFor="category" className="text-sm">Catégorie *</Label>
               <Select
-                value={formData.market_id}
-                onValueChange={(value) => setFormData({ ...formData, market_id: value })}
+                value={formData.category_id}
+                onValueChange={(value) => setFormData({ ...formData, category_id: value })}
                 required
               >
                 <SelectTrigger className="min-h-[48px] rounded-xl touch-manipulation">
-                  <SelectValue placeholder="Choisir un marché" />
+                  <SelectValue placeholder="Choisir une catégorie" />
                 </SelectTrigger>
                 <SelectContent>
-                  {markets.map((market) => (
-                    <SelectItem key={market.id} value={market.id}>
-                      {market.name}
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="market" className="text-sm">Marché *</Label>
+            <Select
+              value={formData.market_id}
+              onValueChange={(value) => setFormData({ ...formData, market_id: value })}
+              required
+            >
+              <SelectTrigger className="min-h-[48px] rounded-xl touch-manipulation">
+                <SelectValue placeholder="Choisir un marché" />
+              </SelectTrigger>
+              <SelectContent>
+                {markets.map((market) => (
+                  <SelectItem key={market.id} value={market.id}>
+                    {market.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

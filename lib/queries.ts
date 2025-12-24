@@ -1,11 +1,11 @@
 import { supabase } from "@/lib/supabaseClient";
-import type { Product, ProductWithMarkets, Supplier, Market  } from "@/lib/types";
+import type { Product, ProductWithMarkets, Supplier, Market, Category } from "@/lib/types";
 
 export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
   // First fetch products (avoid nesting relations in the same select to prevent schema-cache errors)
   const { data: products, error: prodErr } = await supabase
     .from('products')
-    .select('id, name, status, supplier_id, purchase_price, sale_price');
+    .select('id, name, code, status, supplier_id, category_id, purchase_price, sale_price');
 
   if (prodErr) throw prodErr;
   const items = (products || []) as any[];
@@ -35,6 +35,16 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
     ...p,
     product_markets: relsByProduct[p.id] || [],
   })) as ProductWithMarkets[];
+};
+
+export const fetchCategories = async (): Promise<Category[]> => {
+  const { data, error } = await supabase
+    .from("categories")
+    .select("*")
+    .order("name");
+
+  if (error) throw error;
+  return data ?? [];
 };
 
 export const fetchSuppliers = async (): Promise<Supplier[]> => {

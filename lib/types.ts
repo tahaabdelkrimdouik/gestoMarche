@@ -10,6 +10,12 @@ export interface Supplier {
   name: string;
   phone_number: string;
 }
+
+export interface Category {
+  id: string;
+  name: string;
+}
+
 export interface ProductMarket {
   market_id: string;
 }
@@ -17,10 +23,12 @@ export interface ProductMarket {
 export type Product = {
   id: string;
   name: string;
+  code: string;
   purchase_price: number | null;
   sale_price: number | null;
   status: StockStatus;
   supplier_id: string | null;
+  category_id: string;
 };
 
 export type ProductWithMarkets = Product & {

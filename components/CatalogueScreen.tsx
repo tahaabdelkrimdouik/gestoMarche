@@ -12,12 +12,20 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Package, 
-  Truck, 
-  Pencil, 
-  Trash2, 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Package,
+  Truck,
+  Pencil,
+  Trash2,
   Search,
+  Filter,
 } from 'lucide-react';
 import EmptyState from './EmptyState';
 // Assurez-vous que ces composants existent ou commentez-les si nécessaire
@@ -34,13 +42,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { Market, Product, ProductWithMarkets, Supplier } from '@/lib/types';
+import type { Market, Product, ProductWithMarkets, Supplier, Category } from '@/lib/types';
 
 // 1. Interface des Props
 interface CatalogueScreenProps {
   products: ProductWithMarkets[];
   suppliers: Supplier[];
   markets: Market[];
+  categories: Category[];
   onCreateProduct: (data: any) => void; // On utilise any temporairement pour les forms, ou Omit<Product, 'id'>
   onUpdateProduct: (id: string, data: Partial<Product>) => void;
   onDeleteProduct: (id: string) => void;
@@ -49,10 +58,11 @@ interface CatalogueScreenProps {
   onDeleteSupplier: (id: string) => void;
 }
 
-export default function CatalogueScreen({ 
-  products, 
-  suppliers, 
+export default function CatalogueScreen({
+  products,
+  suppliers,
   markets,
+  categories,
   onCreateProduct,
   onUpdateProduct,
   onDeleteProduct,
@@ -60,9 +70,10 @@ export default function CatalogueScreen({
   onUpdateSupplier,
   onDeleteSupplier
 }: CatalogueScreenProps) {
-  
+
   const [activeTab, setActiveTab] = useState('products');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
   // Correction: Typage explicite pour permettre l'objet ou null
   const [editingProduct, setEditingProduct] = useState<ProductWithMarkets | null>(null);
@@ -78,16 +89,26 @@ export default function CatalogueScreen({
     id: string | null;
   }>({ isOpen: false, type: null, id: null });
 
-  // Filter products by search
+  // Filter products by search and category
   const filteredProducts = useMemo(() => {
-    if (!searchQuery) return products;
-    const q = searchQuery.toLowerCase();
-    return products.filter(p => 
-      p.name.toLowerCase().includes(q) 
-      // Note: category est un tableau dans types.ts, on vérifie s'il existe avant de filtrer
-      // || (p.category && p.category.some(c => c.name.toLowerCase().includes(q)))
-    );
-  }, [products, searchQuery]);
+    let filtered = products;
+
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(p => p.category_id === selectedCategory);
+    }
+
+    // Filter by search query (name or code)
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.code && p.code.toLowerCase().includes(q))
+      );
+    }
+
+    return filtered;
+  }, [products, searchQuery, selectedCategory]);
 
   // Filter suppliers by search
   const filteredSuppliers = useMemo(() => {
@@ -184,7 +205,7 @@ export default function CatalogueScreen({
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <Input
           type="text"
-          placeholder={activeTab === 'products' ? 'Rechercher un produit...' : 'Rechercher un fournisseur...'}
+          placeholder={activeTab === 'products' ? 'Rechercher par nom ou code...' : 'Rechercher un fournisseur...'}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full min-h-[48px] pl-12 pr-4 border-0 bg-white rounded-xl text-base shadow-sm touch-manipulation"
@@ -214,6 +235,26 @@ export default function CatalogueScreen({
 
         {/* Products Tab */}
         <TabsContent value="products" className="mt-4">
+          {/* Category Filter */}
+          <div className="mb-4">
+            <div className="relative">
+              <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-full min-h-[48px] pl-12 pr-4 border-0 bg-white rounded-xl text-base shadow-sm touch-manipulation">
+                  <SelectValue placeholder="Filtrer par catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les catégories</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {filteredProducts.length === 0 ? (
             <EmptyState
               type="products"
@@ -227,11 +268,12 @@ export default function CatalogueScreen({
                   <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead className="font-semibold text-sm whitespace-nowrap">Produit</TableHead>
-                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden sm:table-cell">Marché</TableHead>
-                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden md:table-cell">Fournisseur</TableHead>
+                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden sm:table-cell">Code</TableHead>
+                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden md:table-cell">Catégorie</TableHead>
+                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden lg:table-cell">Fournisseur</TableHead>
                       <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix achat</TableHead>
                       <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix vente</TableHead>
-                      <TableHead className="font-semibold text-sm text-center whitespace-nowrap hidden sm:table-cell">Marge</TableHead>
+                      <TableHead className="font-semibold text-sm text-center whitespace-nowrap hidden xl:table-cell">Marge</TableHead>
                       <TableHead className="font-semibold text-sm text-center whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -242,15 +284,24 @@ export default function CatalogueScreen({
                       // Affichage simplifié du premier marché si disponible
                       const firstMarketId = product.product_markets?.[0]?.market_id;
 
+                      // Get category name
+                      const getCategoryName = (categoryId: string | undefined) => {
+                        if (!categoryId) return 'N/A';
+                        return categories.find(c => c.id === categoryId)?.name || 'N/A';
+                      };
+
                       return (
                         <TableRow key={product.id} className="hover:bg-gray-50">
                           <TableCell className="min-w-[120px]">
                             <div className="font-medium text-gray-900 text-sm">{product.name}</div>
                           </TableCell>
-                          <TableCell className="text-gray-600 text-sm hidden sm:table-cell">
-                             {getMarketName(firstMarketId)}
+                          <TableCell className="text-gray-600 text-sm hidden sm:table-cell font-mono">
+                            {product.code || '-'}
                           </TableCell>
                           <TableCell className="text-gray-600 text-sm hidden md:table-cell">
+                            {getCategoryName(product.category_id)}
+                          </TableCell>
+                          <TableCell className="text-gray-600 text-sm hidden lg:table-cell">
                             {getSupplierName(product.supplier_id)}
                           </TableCell>
                           <TableCell className="text-right font-medium text-sm whitespace-nowrap">
@@ -259,13 +310,13 @@ export default function CatalogueScreen({
                           <TableCell className="text-right font-medium text-sm whitespace-nowrap">
                             {product.sale_price ? `${product.sale_price.toFixed(2)} €` : '-'}
                           </TableCell>
-                          <TableCell className="text-center hidden sm:table-cell">
+                          <TableCell className="text-center hidden xl:table-cell">
                             {margin !== null ? (
-                              <Badge 
+                              <Badge
                                 variant="outline"
                                 className={`text-xs whitespace-nowrap ${
-                                  parseFloat(margin) > 30 ? 'bg-green-50 text-green-700 border-green-200' : 
-                                  parseFloat(margin) > 15 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 
+                                  parseFloat(margin) > 30 ? 'bg-green-50 text-green-700 border-green-200' :
+                                  parseFloat(margin) > 15 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
                                   'bg-red-50 text-red-700 border-red-200'
                                 }`}
                               >
@@ -385,6 +436,7 @@ export default function CatalogueScreen({
           product={editingProduct}
           markets={markets}
           suppliers={suppliers}
+          categories={categories}
         />
       )}
 

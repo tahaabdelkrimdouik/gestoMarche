@@ -7,8 +7,8 @@ import BottomNav from '@/components/BottomNav';
 import CatalogueScreen from '@/components/CatalogueScreen';
 
 // TYPES & QUERIES
-import type { Market, Product, ProductWithMarkets, Supplier } from '@/lib/types';
-import { fetchProducts, fetchSuppliers, fetchMarkets } from '@/lib/queries';
+import type { Market, Product, ProductWithMarkets, Supplier, Category } from '@/lib/types';
+import { fetchProducts, fetchSuppliers, fetchMarkets, fetchCategories } from '@/lib/queries';
 
 export default function CataloguePage() {
   const queryClient = useQueryClient();
@@ -24,6 +24,11 @@ export default function CataloguePage() {
     queryFn: fetchSuppliers,
   });
 
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['categories'],
+    queryFn: fetchCategories,
+  });
+
   const { data: markets = [] } = useQuery<Market[]>({
     queryKey: ['markets'],
     queryFn: fetchMarkets,
@@ -35,8 +40,10 @@ export default function CataloguePage() {
       // Map UI fields to DB schema
       const payload: any = {
         name: newProduct.name,
+        code: newProduct.code || null,
         status: newProduct.status,
         supplier_id: newProduct.supplier_id || null,
+        category_id: newProduct.category_id,
         purchase_price: newProduct.prix_achat !== undefined ? newProduct.prix_achat : newProduct.purchase_price,
         sale_price: newProduct.prix_vente !== undefined ? newProduct.prix_vente : newProduct.sale_price,
       };
@@ -63,10 +70,12 @@ export default function CataloguePage() {
         .from('products')
         .update({
           name: productData.name,
+          code: productData.code || null,
           purchase_price: productData.purchase_price,
           sale_price: productData.sale_price,
           status: productData.status,
           supplier_id: productData.supplier_id,
+          category_id: productData.category_id,
         })
         .eq('id', productData.id);
 
@@ -145,6 +154,7 @@ export default function CataloguePage() {
           products={products}
           suppliers={suppliers}
           markets={markets}
+          categories={categories}
           onCreateProduct={handleCreateProduct}
           onUpdateProduct={handleUpdateProduct}
           onDeleteProduct={handleDeleteProduct}

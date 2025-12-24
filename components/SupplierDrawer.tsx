@@ -3,7 +3,7 @@ import { X, AlertTriangle, XCircle, Phone, MessageCircle, FileText } from 'lucid
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generatePurchaseOrderPDF, downloadPDF } from '@/components/PdfGenerator';
+import { generatePurchaseOrderPDF, sharePDF } from '@/components/PdfGenerator';
 import { Product, Supplier } from '@/lib/types';
 
 const statusConfig = {
@@ -43,17 +43,14 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
 
   const handleGeneratePDF = async () => {
     setIsGeneratingPDF(true);
-    
+
     try {
-      // Simuler un délai de génération
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Générer le PDF
-      const pdfData = generatePurchaseOrderPDF(supplier, criticalProducts);
-      
-      // Télécharger le PDF
-      downloadPDF(pdfData);
-      
+      // Générer le PDF réel
+      const pdfData = await generatePurchaseOrderPDF(supplier, criticalProducts);
+
+      // Partager ou télécharger selon la plateforme
+      await sharePDF(pdfData);
+
       console.log('✅ PDF généré avec succès:', pdfData);
     } catch (error) {
       console.error('❌ Erreur lors de la génération du PDF:', error);
