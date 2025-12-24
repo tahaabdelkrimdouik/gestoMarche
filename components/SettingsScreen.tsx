@@ -24,16 +24,10 @@ const settingsGroups = [
   {
     title: 'Préférences',
     items: [
-      { id: 'notifications', label: 'Notifications', icon: Bell, badge: null },
       { id: 'theme', label: 'Mode sombre', icon: Moon, badge: 'Bientôt' },
     ],
   },
-  {
-    title: 'Aide',
-    items: [
-      { id: 'help', label: 'Centre d\'aide', icon: HelpCircle, badge: null },
-    ],
-  },
+
 ];
 
 interface SettingsScreenProps {
@@ -48,7 +42,7 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto shadow-xl shadow-emerald-200 mb-3 sm:mb-4">
           <Package className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
         </div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Mon Stock</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">GestoStock</h1>
         <p className="text-sm sm:text-base text-gray-500 mt-1">Gérez vos paramètres</p>
       </div>
 
@@ -96,24 +90,11 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
         </motion.div>
       ))}
 
-      {/* Logout */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <Button 
-          variant="outline" 
-          className="w-full min-h-[56px] rounded-2xl border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium touch-manipulation active:scale-[0.98]"
-        >
-          <LogOut className="w-5 h-5 mr-2" />
-          Déconnexion
-        </Button>
-      </motion.div>
+
 
       {/* Version */}
       <p className="text-center text-xs sm:text-sm text-gray-400">
-        Version 1.0.0
+        Built with douik karim
       </p>
     </div>
   );

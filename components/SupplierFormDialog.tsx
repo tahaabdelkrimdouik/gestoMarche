@@ -57,8 +57,8 @@ export default function SupplierFormDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl mx-4">
-        <DialogHeader>
+      <DialogContent className="max-w-[80%] max-h-[90vh] overflow-y-auto rounded-3xl">
+      <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
               <Truck className="w-5 h-5 text-violet-600" />

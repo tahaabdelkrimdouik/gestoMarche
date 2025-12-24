@@ -10,8 +10,6 @@ import BottomNav from '@/components/BottomNav';
 import SupplierCard from '@/components/SupplierCard';
 import SupplierDrawer from '@/components/SupplierDrawer';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Phone } from 'lucide-react';
 
 // TYPES & QUERIES
 import type { Market, ProductWithMarkets, Supplier } from '@/lib/types';
@@ -67,7 +65,7 @@ export default function SuppliersPage() {
 
   const getSupplierAlertCount = (supplierId: string): number => {
     return marketProducts.filter(
-      (p) => p.supplier_id === supplierId && (p.status === 'low' || p.status === 'out')
+      (p) => p.supplier_id === supplierId && p.status === 'out'
     ).length;
   };
 
@@ -96,22 +94,6 @@ export default function SuppliersPage() {
             />
           </div>
 
-          {/* Call Supplier Button - Only show when supplier is selected */}
-          {selectedSupplier && (
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-emerald-200">
-              <Button
-                onClick={() => window.open(`tel:${selectedSupplier.phone_number}`, '_self')}
-                disabled={!selectedSupplier.phone_number}
-                className="w-full min-h-[56px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-lg shadow-emerald-200 transition-all touch-manipulation active:scale-[0.98]"
-              >
-                <Phone className="w-5 h-5 mr-2" />
-                {selectedSupplier.phone_number
-                  ? `Appeler ${selectedSupplier.name}`
-                  : 'Numéro non disponible'
-                }
-              </Button>
-            </div>
-          )}
 
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">

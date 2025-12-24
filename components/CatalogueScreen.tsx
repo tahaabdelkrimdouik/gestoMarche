@@ -103,7 +103,7 @@ export default function CatalogueScreen({
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(q) ||
-        (p.code && p.code.toLowerCase().includes(q))
+        (p.code || '').toLowerCase().includes(q)
       );
     }
 
@@ -205,7 +205,7 @@ export default function CatalogueScreen({
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <Input
           type="text"
-          placeholder={activeTab === 'products' ? 'Rechercher par nom ou code...' : 'Rechercher un fournisseur...'}
+          placeholder={activeTab === 'products' ? 'Rechercher par nom ou code produit...' : 'Rechercher un fournisseur...'}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full min-h-[48px] pl-12 pr-4 border-0 bg-white rounded-xl text-base shadow-sm touch-manipulation"
@@ -268,7 +268,7 @@ export default function CatalogueScreen({
                   <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead className="font-semibold text-sm whitespace-nowrap">Produit</TableHead>
-                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden sm:table-cell">Code</TableHead>
+                      <TableHead className="font-semibold text-sm whitespace-nowrap">Code</TableHead>
                       <TableHead className="font-semibold text-sm whitespace-nowrap hidden md:table-cell">Catégorie</TableHead>
                       <TableHead className="font-semibold text-sm whitespace-nowrap hidden lg:table-cell">Fournisseur</TableHead>
                       <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix achat</TableHead>
@@ -295,8 +295,10 @@ export default function CatalogueScreen({
                           <TableCell className="min-w-[120px]">
                             <div className="font-medium text-gray-900 text-sm">{product.name}</div>
                           </TableCell>
-                          <TableCell className="text-gray-600 text-sm hidden sm:table-cell font-mono">
-                            {product.code || '-'}
+                          <TableCell className="text-gray-600 text-sm font-mono">
+                            <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">
+                              {product.code || '—'}
+                            </span>
                           </TableCell>
                           <TableCell className="text-gray-600 text-sm hidden md:table-cell">
                             {getCategoryName(product.category_id)}

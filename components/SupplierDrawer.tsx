@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, AlertTriangle, XCircle, Phone, MessageCircle, FileText } from 'lucide-react';
+import { X, AlertTriangle, XCircle, Phone, MessageCircle, FileText, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -78,7 +78,7 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[85vh] overflow-hidden"
+            className="fixed bottom-16 left-0 right-0 z-50 bg-white rounded-t-3xl  overflow-hidden"
           >
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-2">
@@ -156,35 +156,50 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
             </div>
 
             {/* Footer */}
-            {criticalProducts.length > 0 && (
-              <div className="px-5 py-4 border-t border-gray-100 bg-white space-y-3">
-                <Button 
-                  onClick={handleGeneratePDF}
-                  disabled={isGeneratingPDF}
-                  className="w-full min-h-[56px] rounded-2xl bg-violet-500 hover:bg-violet-600 text-white font-semibold text-base shadow-lg shadow-violet-200 transition-all touch-manipulation active:scale-[0.98]"
-                >
-                  {isGeneratingPDF ? (
-                    <>
-                      <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Génération...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-5 h-5 mr-2" />
-                      Générer Bon de Commande
-                    </>
-                  )}
-                </Button>
-                <Button 
-                  onClick={handleShare}
-                  variant="outline"
-                  className="w-full min-h-[56px] rounded-2xl border-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-semibold text-base transition-all touch-manipulation active:scale-[0.98]"
-                >
-                  <MessageCircle className="w-5 h-5 mr-2" />
-                  Partager sur WhatsApp
-                </Button>
-              </div>
-            )}
+            <div className="px-5 py-4 border-t border-gray-100 bg-white space-y-3">
+              {/* Call Supplier Button */}
+              <Button
+                onClick={() => window.open(`tel:${supplier.phone_number}`, '_self')}
+                disabled={!supplier.phone_number}
+                className="w-full min-h-[56px] rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-lg shadow-emerald-200 transition-all touch-manipulation active:scale-[0.98]"
+              >
+                <PhoneCall className="w-5 h-5 mr-2" />
+                {supplier.phone_number
+                  ? `Appeler ${supplier.name}`
+                  : 'Numéro non disponible'
+                }
+              </Button>
+
+              {criticalProducts.length > 0 && (
+                <>
+                  <Button
+                    onClick={handleGeneratePDF}
+                    disabled={isGeneratingPDF}
+                    className="w-full min-h-[56px] rounded-2xl bg-violet-500 hover:bg-violet-600 text-white font-semibold text-base shadow-lg shadow-violet-200 transition-all touch-manipulation active:scale-[0.98]"
+                  >
+                    {isGeneratingPDF ? (
+                      <>
+                        <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Génération...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-5 h-5 mr-2" />
+                        Générer Bon de Commande
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleShare}
+                    variant="outline"
+                    className="w-full min-h-[56px] rounded-2xl border-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-semibold text-base transition-all touch-manipulation active:scale-[0.98]"
+                  >
+                    <MessageCircle className="w-5 h-5 mr-2" />
+                    Partager sur WhatsApp
+                  </Button>
+                </>
+              )}
+            </div>
           </motion.div>
         </>
       )}
