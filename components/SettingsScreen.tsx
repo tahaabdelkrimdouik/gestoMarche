@@ -16,9 +16,9 @@ const settingsGroups = [
   {
     title: 'Gestion',
     items: [
-      { id: 'markets', label: 'Mes marchés', icon: Store, badge: null },
-      { id: 'products', label: 'Gérer les produits', icon: Package, badge: null },
-      { id: 'suppliers', label: 'Gérer les fournisseurs', icon: Truck, badge: null },
+      { id: 'markets', label: 'Mes marchés', icon: Store, badge: null, route: '/markets' },
+      { id: 'products', label: 'Gérer les produits', icon: Package, badge: null, route: '/catalogue' },
+      { id: 'suppliers', label: 'Gérer les fournisseurs', icon: Truck, badge: null, route: '/suppliers' },
     ],
   },
   {
@@ -36,7 +36,11 @@ const settingsGroups = [
   },
 ];
 
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+  onNavigate?: (route: string) => void;
+}
+
+export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
   return (
     <div className="px-4 py-4 sm:py-6 pb-28 space-y-4 sm:space-y-6">
       {/* Header */}
@@ -67,9 +71,11 @@ export default function SettingsScreen() {
               return (
                 <button
                   key={item.id}
+                  onClick={() => item.route && onNavigate?.(item.route)}
+                  disabled={!item.route}
                   className={`w-full flex items-center gap-4 p-5 min-h-[64px] hover:bg-gray-50 transition-colors touch-manipulation active:bg-gray-100 ${
                     !isLast ? 'border-b border-gray-100' : ''
-                  }`}
+                  } ${!item.route ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                     <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />

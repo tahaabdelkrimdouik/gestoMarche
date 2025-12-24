@@ -1,18 +1,19 @@
 
-interface CustomButtonProps {
-  label: string;      // On définit le type
-  onClick: () => void; // On définit que c'est une fonction qui ne retourne rien
+import { Plus } from 'lucide-react';
+
+interface FloatingActionButtonProps {
+  label: string;
+  onClick: () => void;
 }
 
-// 2. Appliquer l'interface
-export default function CustomButton({ label, onClick }: CustomButtonProps) {
+export default function FloatingActionButton({ label, onClick }: FloatingActionButtonProps) {
   return (
-    <button 
-      onClick={onClick} 
-      className="px-4 py-2 bg-emerald-500 text-white rounded-lg"
+    <button
+      onClick={onClick}
+      className="fixed bottom-24 right-4 sm:bottom-28 sm:right-6 z-40 w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-lg shadow-emerald-200 flex items-center justify-center transition-all duration-200 active:scale-95 touch-manipulation"
+      aria-label={label}
     >
-      {/* 3. On utilise 'label' ici pour supprimer l'erreur "never read" */}
-      {label}
+      <Plus className="w-6 h-6" />
     </button>
   );
 }

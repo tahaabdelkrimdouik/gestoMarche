@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import type { Product, ProductWithMarkets, Category, Supplier, Market  } from "@/lib/types";
+import type { Product, ProductWithMarkets, Supplier, Market  } from "@/lib/types";
 
 export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
   // First fetch products (avoid nesting relations in the same select to prevent schema-cache errors)
@@ -35,18 +35,6 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
     ...p,
     product_markets: relsByProduct[p.id] || [],
   })) as ProductWithMarkets[];
-};
-
-
-
-export const fetchCategories = async (): Promise<Category[]> => {
-  const { data, error } = await supabase
-    .from("categories")
-    .select("*")
-    .order("name");
-
-  if (error) throw error;
-  return data ?? [];
 };
 
 export const fetchSuppliers = async (): Promise<Supplier[]> => {

@@ -39,6 +39,7 @@ export default function ProductFormDialog({
   const [formData, setFormData] = useState({
     name: '',
     supplier_id: '',
+    market_id: '',
     purchase_price: '',
     sale_price: '',
     status: 'available',
@@ -49,6 +50,7 @@ export default function ProductFormDialog({
       setFormData({
         name: product.name,
         supplier_id: product.supplier_id || '',
+        market_id: product.product_markets?.[0]?.market_id || '',
         purchase_price: product.purchase_price?.toString() || '',
         sale_price: product.sale_price?.toString() || '',
         status: product.status,
@@ -57,6 +59,7 @@ export default function ProductFormDialog({
       setFormData({
         name: '',
         supplier_id: '',
+        market_id: '',
         purchase_price: '',
         sale_price: '',
         status: 'available',
@@ -126,6 +129,26 @@ export default function ProductFormDialog({
                   {suppliers.map((supplier) => (
                     <SelectItem key={supplier.id} value={supplier.id}>
                       {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="market" className="text-sm">Marché *</Label>
+              <Select
+                value={formData.market_id}
+                onValueChange={(value) => setFormData({ ...formData, market_id: value })}
+                required
+              >
+                <SelectTrigger className="min-h-[48px] rounded-xl touch-manipulation">
+                  <SelectValue placeholder="Choisir un marché" />
+                </SelectTrigger>
+                <SelectContent>
+                  {markets.map((market) => (
+                    <SelectItem key={market.id} value={market.id}>
+                      {market.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

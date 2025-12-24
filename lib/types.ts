@@ -8,11 +8,7 @@ export interface Market {
 export interface Supplier {
   id: string;
   name: string;
-  phone_number:number;
-}
-export interface Category {
-  id: string;
-  name: string;
+  phone_number: string;
 }
 export interface ProductMarket {
   market_id: string;

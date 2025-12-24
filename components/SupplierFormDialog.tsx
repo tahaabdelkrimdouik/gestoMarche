@@ -37,7 +37,7 @@ export default function SupplierFormDialog({
       Promise.resolve().then(() => {
         setFormData({
           name: supplier.name ?? '',
-          phone_number: (supplier as any).phone_number ?? ''
+          phone_number: supplier.phone_number ?? ''
         });
       });
     } else {

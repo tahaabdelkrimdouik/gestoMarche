@@ -1,21 +1,28 @@
 {
-  "name": "Stock Manager",
-  "short_name": "Stock",
-  "description": "Stock & catalogue management app",
+  "name": "GestoMarché",
+  "short_name": "GestoMarché",
+  "description": "Manage stock, suppliers and catalogue",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f9fafb",
   "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["productivity", "business"],
+  "lang": "fr",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
