@@ -35,6 +35,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="msapplication-TileColor" content="#4f46e5" />
         <meta name="msapplication-config" content="/browserconfig.xml" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

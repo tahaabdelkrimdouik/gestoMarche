@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 interface Supplier {
   id: string;
   name: string;
-  phone?: string; // Le point d'interrogation signifie que c'est optionnel
+  phone_number?: string; // Le point d'interrogation signifie que c'est optionnel
 }
 
 // 2. Définir les types pour les props du composant
@@ -37,9 +37,9 @@ export default function SupplierCard({ supplier, alertCount, onClick }: Supplier
             <h3 className="text-base font-semibold text-gray-900 truncate">
               {supplier.name}
             </h3>
-            {supplier.phone && (
+            {supplier.phone_number && (
               <p className="text-sm text-gray-500 truncate">
-                {supplier.phone}
+                {supplier.phone_number}
               </p>
             )}
           </div>

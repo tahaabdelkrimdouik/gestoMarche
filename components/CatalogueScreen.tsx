@@ -107,6 +107,13 @@ export default function CatalogueScreen({
       );
     }
 
+    // Sort by product code (ascending)
+    filtered.sort((a, b) => {
+      const codeA = (a.code || '').toLowerCase();
+      const codeB = (b.code || '').toLowerCase();
+      return codeA.localeCompare(codeB);
+    });
+
     return filtered;
   }, [products, searchQuery, selectedCategory]);
 
@@ -262,99 +269,165 @@ export default function CatalogueScreen({
               description={searchQuery ? `Aucun produit ne correspond à "${searchQuery}"` : "Ajoutez des produits à votre catalogue"}
             />
           ) : (
-            <Card className="overflow-hidden border-0 shadow-sm rounded-2xl">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="font-semibold text-sm whitespace-nowrap">Produit</TableHead>
-                      <TableHead className="font-semibold text-sm whitespace-nowrap">Code</TableHead>
-                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden md:table-cell">Catégorie</TableHead>
-                      <TableHead className="font-semibold text-sm whitespace-nowrap hidden lg:table-cell">Fournisseur</TableHead>
-                      <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix achat</TableHead>
-                      <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix vente</TableHead>
-                      <TableHead className="font-semibold text-sm text-center whitespace-nowrap hidden xl:table-cell">Marge</TableHead>
-                      <TableHead className="font-semibold text-sm text-center whitespace-nowrap">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProducts.map((product) => {
-                      // Correction: Utilisation des noms de propriétés anglais (match types.ts)
-                      const margin = calculateMargin(product.purchase_price, product.sale_price);
-                      // Affichage simplifié du premier marché si disponible
-                      const firstMarketId = product.product_markets?.[0]?.market_id;
+            <>
+              {/* Mobile Card View */}
+              <div className="block md:hidden space-y-3">
+                {filteredProducts.map((product) => {
+                  const margin = calculateMargin(product.purchase_price, product.sale_price);
+                  const getCategoryName = (categoryId: string | undefined) => {
+                    if (!categoryId) return 'N/A';
+                    return categories.find(c => c.id === categoryId)?.name || 'N/A';
+                  };
 
-                      // Get category name
-                      const getCategoryName = (categoryId: string | undefined) => {
-                        if (!categoryId) return 'N/A';
-                        return categories.find(c => c.id === categoryId)?.name || 'N/A';
-                      };
-
-                      return (
-                        <TableRow key={product.id} className="hover:bg-gray-50">
-                          <TableCell className="min-w-[120px]">
-                            <div className="font-medium text-gray-900 text-sm">{product.name}</div>
-                          </TableCell>
-                          <TableCell className="text-gray-600 text-sm font-mono">
-                            <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">
+                  return (
+                    <Card key={product.id} className="p-4 border-0 shadow-sm rounded-2xl">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+                            <span className="px-2 py-1 bg-gray-100 rounded text-xs font-mono font-medium">
                               {product.code || '—'}
                             </span>
-                          </TableCell>
-                          <TableCell className="text-gray-600 text-sm hidden md:table-cell">
-                            {getCategoryName(product.category_id)}
-                          </TableCell>
-                          <TableCell className="text-gray-600 text-sm hidden lg:table-cell">
-                            {getSupplierName(product.supplier_id)}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                            {product.purchase_price ? `${product.purchase_price.toFixed(2)} €` : '-'}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                            {product.sale_price ? `${product.sale_price.toFixed(2)} €` : '-'}
-                          </TableCell>
-                          <TableCell className="text-center hidden xl:table-cell">
-                            {margin !== null ? (
-                              <Badge
-                                variant="outline"
-                                className={`text-xs whitespace-nowrap ${
-                                  parseFloat(margin) > 30 ? 'bg-green-50 text-green-700 border-green-200' :
-                                  parseFloat(margin) > 15 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                  'bg-red-50 text-red-700 border-red-200'
-                                }`}
-                              >
-                                {margin}%
-                              </Badge>
-                            ) : (
-                              <span className="text-gray-400 text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditProduct(product)}
-                                className="min-h-[44px] min-w-[44px] hover:bg-gray-100 touch-manipulation"
-                              >
-                                <Pencil className="w-5 h-5 text-gray-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteClick('product', product.id)}
-                                className="min-h-[44px] min-w-[44px] hover:bg-red-50 touch-manipulation"
-                              >
-                                <Trash2 className="w-5 h-5 text-red-600" />
-                              </Button>
+                          </div>
+                          <div className="space-y-1 text-sm text-gray-600">
+                            <p>Catégorie: {getCategoryName(product.category_id)}</p>
+                            <p>Fournisseur: {getSupplierName(product.supplier_id)}</p>
+                            <div className="flex items-center gap-4 mt-2">
+                              <span>Achat: {product.purchase_price ? `${product.purchase_price.toFixed(2)} €` : '-'}</span>
+                              <span>Vente: {product.sale_price ? `${product.sale_price.toFixed(2)} €` : '-'}</span>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            {margin !== null && (
+                              <div className="mt-2">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    parseFloat(margin) > 30 ? 'bg-green-50 text-green-700 border-green-200' :
+                                    parseFloat(margin) > 15 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                    'bg-red-50 text-red-700 border-red-200'
+                                  }`}
+                                >
+                                  Marge: {margin}%
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditProduct(product)}
+                            className="min-h-[40px] min-w-[40px] hover:bg-gray-100"
+                          >
+                            <Pencil className="w-4 h-4 text-gray-600" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteClick('product', product.id)}
+                            className="min-h-[40px] min-w-[40px] hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
-            </Card>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <Card className="overflow-hidden border-0 shadow-sm rounded-2xl">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="font-semibold text-sm whitespace-nowrap">Produit</TableHead>
+                          <TableHead className="font-semibold text-sm whitespace-nowrap">Code</TableHead>
+                          <TableHead className="font-semibold text-sm whitespace-nowrap">Catégorie</TableHead>
+                          <TableHead className="font-semibold text-sm whitespace-nowrap">Fournisseur</TableHead>
+                          <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix achat</TableHead>
+                          <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix vente</TableHead>
+                          <TableHead className="font-semibold text-sm text-center whitespace-nowrap">Marge</TableHead>
+                          <TableHead className="font-semibold text-sm text-center whitespace-nowrap">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredProducts.map((product) => {
+                          const margin = calculateMargin(product.purchase_price, product.sale_price);
+                          const getCategoryName = (categoryId: string | undefined) => {
+                            if (!categoryId) return 'N/A';
+                            return categories.find(c => c.id === categoryId)?.name || 'N/A';
+                          };
+
+                          return (
+                            <TableRow key={product.id} className="hover:bg-gray-50">
+                              <TableCell className="min-w-[120px]">
+                                <div className="font-medium text-gray-900 text-sm">{product.name}</div>
+                              </TableCell>
+                              <TableCell className="text-gray-600 text-sm font-mono">
+                                <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">
+                                  {product.code || '—'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-gray-600 text-sm">
+                                {getCategoryName(product.category_id)}
+                              </TableCell>
+                              <TableCell className="text-gray-600 text-sm">
+                                {getSupplierName(product.supplier_id)}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                                {product.purchase_price ? `${product.purchase_price.toFixed(2)} €` : '-'}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                                {product.sale_price ? `${product.sale_price.toFixed(2)} €` : '-'}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {margin !== null ? (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs whitespace-nowrap ${
+                                      parseFloat(margin) > 30 ? 'bg-green-50 text-green-700 border-green-200' :
+                                      parseFloat(margin) > 15 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                      'bg-red-50 text-red-700 border-red-200'
+                                    }`}
+                                  >
+                                    {margin}%
+                                  </Badge>
+                                ) : (
+                                  <span className="text-gray-400 text-sm">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleEditProduct(product)}
+                                    className="min-h-[44px] min-w-[44px] hover:bg-gray-100 touch-manipulation"
+                                  >
+                                    <Pencil className="w-5 h-5 text-gray-600" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteClick('product', product.id)}
+                                    className="min-h-[44px] min-w-[44px] hover:bg-red-50 touch-manipulation"
+                                  >
+                                    <Trash2 className="w-5 h-5 text-red-600" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+              </div>
+            </>
           )}
         </TabsContent>
 
