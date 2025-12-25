@@ -7,12 +7,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
 interface Market {
   id: string;
   name: string;
 }
 
-// 2. Types pour les Props
 interface HeaderProps {
   markets: Market[];
   selectedMarket: string;
@@ -20,7 +20,14 @@ interface HeaderProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
 }
-export default function Header({ markets, selectedMarket, onMarketChange, searchQuery, onSearchChange }:HeaderProps) {
+
+export default function Header({ 
+  markets, 
+  selectedMarket, 
+  onMarketChange, 
+  searchQuery, 
+  onSearchChange 
+}: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
       <div className="px-4 py-4 space-y-3">
@@ -34,6 +41,15 @@ export default function Header({ markets, selectedMarket, onMarketChange, search
               <SelectValue placeholder="Choisir un marché" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
+              {/* All Markets Option */}
+              <SelectItem 
+                value="all"
+                className="rounded-lg py-3 cursor-pointer font-semibold"
+              >
+                Tous les marchés
+              </SelectItem>
+              
+              {/* Individual Markets */}
               {markets.map((market) => (
                 <SelectItem 
                   key={market.id} 

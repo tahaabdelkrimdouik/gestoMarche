@@ -1,9 +1,8 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
-import { Search } from 'lucide-react';
 
 // COMPONENTS
 import Header from '@/components/Header';
@@ -17,7 +16,8 @@ import type { Market, ProductWithMarkets, StockStatus } from '@/lib/types';
 import { fetchProducts, fetchMarkets } from '@/lib/queries';
 
 export default function StockPage() {
-  const [selectedMarket, setSelectedMarket] = useState('');
+  // Default to 'all' to show all markets
+  const [selectedMarket, setSelectedMarket] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
 
@@ -42,17 +42,14 @@ export default function StockPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
 
-  // Set default market
-  useEffect(() => {
-    if (markets.length > 0 && !selectedMarket) {
-      setTimeout(() => setSelectedMarket(markets[0].id), 0);
-    }
-  }, [markets, selectedMarket]);
-
   // Filter products by MARKET using the new relation array
   const marketProducts = useMemo(() => {
-    if (!selectedMarket) return products;
+    // If 'all' is selected, return all products without filtering
+    if (selectedMarket === 'all') {
+      return products;
+    }
 
+    // Otherwise, filter by the specific market ID
     return products.filter(p => {
       // Check if product_markets exists and contains the selected market ID
       return p.product_markets?.some((pm: any) => pm.market_id === selectedMarket);

@@ -118,7 +118,7 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto px-5 py-4" style={{ maxHeight: 'calc(85vh - 180px)' }}>
+            <div className="px-5 py-4" style={{ maxHeight: 'calc(85vh - 180px)' }}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
                   Produits à commander ({criticalProducts.length})
@@ -133,13 +133,13 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
                   <p className="text-gray-500">Tous les produits sont en stock</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="max-h-[250px] overflow-y-auto space-y-3">
                   {criticalProducts.map((product) => {
                     const config = statusConfig[product.status as keyof typeof statusConfig];
                     const Icon = config?.icon;
-                    
+
                     return (
-                      <div 
+                      <div
                         key={product.id}
                         className="flex items-center justify-between p-4 bg-gray-50 rounded-xl"
                       >
