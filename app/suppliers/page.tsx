@@ -26,7 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Phone } from 'lucide-react';
+import { Pencil, Phone } from 'lucide-react';
 
 // TYPES & QUERIES
 import type { Market, ProductWithMarkets, Supplier } from '@/lib/types';
@@ -36,9 +36,7 @@ export default function SuppliersPage() {
   const [supplierSearch, setSupplierSearch] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [selectedMarket, setSelectedMarket] = useState('');
 
-  const queryClient = useQueryClient();
 
   // FETCH DATA
   const { data: markets = [] } = useQuery<Market[]>({
@@ -56,22 +54,9 @@ export default function SuppliersPage() {
     queryFn: fetchProducts,
   });
 
-  // Set default to "all" markets for better visibility of all supplier alerts
-  React.useEffect(() => {
-    if (!selectedMarket) {
-      setSelectedMarket('all');
-    }
-  }, [selectedMarket]);
 
-  // Filter products by MARKET using the new relation array (or show all if 'all' selected)
-  const marketProducts = useMemo(() => {
-    if (!selectedMarket || selectedMarket === 'all') return products;
 
-    return products.filter(p => {
-      // Check if product_markets exists and contains the selected market ID
-      return p.product_markets?.some((pm: any) => pm.market_id === selectedMarket);
-    });
-  }, [products, selectedMarket]);
+
 
   // Supplier Filters
   const filteredSuppliers = useMemo(() => {
@@ -113,23 +98,6 @@ export default function SuppliersPage() {
             />
           </div>
 
-          {/* Market Filter */}
-          <div className="relative">
-            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Select value={selectedMarket} onValueChange={setSelectedMarket}>
-              <SelectTrigger className="w-full min-h-[48px] pl-12 pr-4 border-0 bg-white rounded-xl text-base shadow-sm touch-manipulation">
-                <SelectValue placeholder="Filtrer par marché" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les marchés</SelectItem>
-                {markets.map((market) => (
-                  <SelectItem key={market.id} value={market.id}>
-                    {market.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
 
           {/* Mobile Card View */}

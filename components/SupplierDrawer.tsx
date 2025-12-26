@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generatePurchaseOrderPDF, sharePDF } from '@/components/PdfGenerator';
+import { notify } from '@/lib/utils/notify';
 import { Product, Supplier } from '@/lib/types';
 
 const statusConfig = {
@@ -45,13 +46,18 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
     setIsGeneratingPDF(true);
 
     try {
-      // Générer le PDF réel
-      const pdfData = await generatePurchaseOrderPDF(supplier, criticalProducts);
+      // Use promise toast for PDF generation
+      const pdfPromise = generatePurchaseOrderPDF(supplier, criticalProducts).then(async (pdfData) => {
+        // Partager ou télécharger selon la plateforme
+        await sharePDF(pdfData);
+        return pdfData;
+      });
 
-      // Partager ou télécharger selon la plateforme
-      await sharePDF(pdfData);
-
-      console.log('✅ PDF généré avec succès:', pdfData);
+      await notify.promise(pdfPromise, {
+        loading: 'Génération du bon de commande...',
+        success: 'Bon de commande téléchargé avec succès',
+        error: 'Erreur lors de la génération du PDF',
+      });
     } catch (error) {
       console.error('❌ Erreur lors de la génération du PDF:', error);
     } finally {

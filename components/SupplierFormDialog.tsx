@@ -89,11 +89,13 @@ export default function SupplierFormDialog({
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 id="phone"
-                type="tel"
+                type="text"
+                inputMode="tel"
                 value={formData.phone_number}
                 onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                 placeholder="+33 6 12 34 56 78"
                 className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
+                pattern="[\+]?[\d\s\-\(\)]*"
               />
             </div>
           </div>

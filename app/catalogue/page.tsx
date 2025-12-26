@@ -9,6 +9,7 @@ import CatalogueScreen from '@/components/CatalogueScreen';
 // TYPES & QUERIES
 import type { Market, Product, ProductWithMarkets, Supplier, Category } from '@/lib/types';
 import { fetchProducts, fetchSuppliers, fetchMarkets, fetchCategories } from '@/lib/queries';
+import { notify } from '@/lib/utils/notify';
 
 export default function CataloguePage() {
   const queryClient = useQueryClient();
@@ -58,7 +59,13 @@ export default function CataloguePage() {
         await supabase.from('product_markets').insert([{ product_id: inserted.id, market_id: marketId }]);
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      notify.success('Produit créé avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la création du produit');
+    },
   });
 
   const updateProductMutation = useMutation({
@@ -102,6 +109,10 @@ export default function CataloguePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      notify.success('Produit mis à jour avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la mise à jour du produit');
     },
   });
 
@@ -109,24 +120,48 @@ export default function CataloguePage() {
     mutationFn: async (id: string) => {
       await supabase.from('products').delete().eq('id', id);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      notify.success('Produit supprimé avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la suppression du produit');
+    },
   });
 
   // SUPPLIER MUTATIONS
   const createSupplierMutation = useMutation({
     mutationFn: async (data: any) => supabase.from('suppliers').insert([data]),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      notify.success('Fournisseur créé avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la création du fournisseur');
+    },
   });
 
   const updateSupplierMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) =>
       supabase.from('suppliers').update(data).eq('id', id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      notify.success('Fournisseur mis à jour avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la mise à jour du fournisseur');
+    },
   });
 
   const deleteSupplierMutation = useMutation({
     mutationFn: async (id: string) => supabase.from('suppliers').delete().eq('id', id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      notify.success('Fournisseur supprimé avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la suppression du fournisseur');
+    },
   });
 
   // Wrapper handlers
