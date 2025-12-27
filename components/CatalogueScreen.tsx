@@ -26,12 +26,14 @@ import {
   Trash2,
   Search,
   Filter,
+  Upload,
 } from 'lucide-react';
 import EmptyState from './EmptyState';
 // Assurez-vous que ces composants existent ou commentez-les si nécessaire
-import FloatingActionButton from './FloatingActionButton'; 
+import FloatingActionButton from './FloatingActionButton';
 import ProductFormDialog from './ProductFormDialog';
 import SupplierFormDialog from './SupplierFormDialog';
+import CsvImportDialog from './CsvImportDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +58,7 @@ interface CatalogueScreenProps {
   onCreateSupplier: (data: any) => void;
   onUpdateSupplier: (id: string, data: Partial<Supplier>) => void;
   onDeleteSupplier: (id: string) => void;
+  onImportProducts: (products: any[]) => Promise<void>;
 }
 
 export default function CatalogueScreen({
@@ -68,7 +71,8 @@ export default function CatalogueScreen({
   onDeleteProduct,
   onCreateSupplier,
   onUpdateSupplier,
-  onDeleteSupplier
+  onDeleteSupplier,
+  onImportProducts
 }: CatalogueScreenProps) {
 
   const [activeTab, setActiveTab] = useState('products');
@@ -81,7 +85,8 @@ export default function CatalogueScreen({
   
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
-  
+  const [isCsvImportDialogOpen, setIsCsvImportDialogOpen] = useState(false);
+
   // Correction: Typage de l'état de suppression
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -203,8 +208,22 @@ export default function CatalogueScreen({
     <div className="px-4 py-4 sm:py-6 pb-28">
       {/* Header */}
       <div className="mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Catalogue</h1>
-        <p className="text-sm sm:text-base text-gray-500">Gérez vos produits et fournisseurs</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Catalogue</h1>
+            <p className="text-sm sm:text-base text-gray-500">Gérez vos produits et fournisseurs</p>
+          </div>
+          {activeTab === 'products' && (
+            <Button
+              onClick={() => setIsCsvImportDialogOpen(true)}
+              variant="outline"
+              className="flex items-center gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+            >
+              <Upload className="w-4 h-4" />
+              Importer CSV
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -539,7 +558,7 @@ export default function CatalogueScreen({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleConfirmDelete}
               className="rounded-xl bg-red-600 hover:bg-red-700"
             >
@@ -548,6 +567,16 @@ export default function CatalogueScreen({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* CSV Import Dialog */}
+      <CsvImportDialog
+        isOpen={isCsvImportDialogOpen}
+        onClose={() => setIsCsvImportDialogOpen(false)}
+        onImport={onImportProducts}
+        markets={markets}
+        suppliers={suppliers}
+        categories={categories}
+      />
     </div>
   );
 }

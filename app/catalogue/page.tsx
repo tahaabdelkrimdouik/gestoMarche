@@ -164,6 +164,55 @@ export default function CataloguePage() {
     },
   });
 
+  // BULK IMPORT MUTATION
+  const createBulkProductsMutation = useMutation({
+    mutationFn: async (products: any[]) => {
+      // Process all products in parallel
+      const productPromises = products.map(async (product) => {
+        // Insert product first
+        const { data: inserted, error: insertErr } = await supabase
+          .from('products')
+          .insert([{
+            name: product.name,
+            code: product.code,
+            status: product.status,
+            supplier_id: product.supplier_id,
+            category_id: product.category_id,
+            purchase_price: product.purchase_price,
+            sale_price: product.sale_price,
+          }])
+          .select()
+          .single();
+
+        if (insertErr) throw insertErr;
+
+        // If market_id is provided, create the relationship
+        if (product.market_id) {
+          const { error: marketErr } = await supabase
+            .from('product_markets')
+            .insert([{
+              product_id: inserted.id,
+              market_id: product.market_id,
+            }]);
+
+          if (marketErr) throw marketErr;
+        }
+
+        return inserted;
+      });
+
+      // Wait for all products to be inserted
+      return await Promise.all(productPromises);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      notify.success(`${data.length} produit(s) importé(s) avec succès`);
+    },
+    onError: () => {
+      notify.error('Erreur lors de l\'importation en masse des produits');
+    },
+  });
+
   // Wrapper handlers
   const handleCreateProduct = (data: any) => createProductMutation.mutate(data);
   const handleUpdateProduct = (id: string, data: Partial<Product>) => {
@@ -196,6 +245,9 @@ export default function CataloguePage() {
           onCreateSupplier={handleCreateSupplier}
           onUpdateSupplier={handleUpdateSupplier}
           onDeleteSupplier={handleDeleteSupplier}
+          onImportProducts={async (products: any[]) => {
+            await createBulkProductsMutation.mutateAsync(products);
+          }}
         />
       </main>
 
