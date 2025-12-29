@@ -22,6 +22,7 @@ import {
 import {
   Package,
   Truck,
+  Tag,
   Pencil,
   Trash2,
   Search,
@@ -33,6 +34,7 @@ import EmptyState from './EmptyState';
 import FloatingActionButton from './FloatingActionButton';
 import ProductFormDialog from './ProductFormDialog';
 import SupplierFormDialog from './SupplierFormDialog';
+import CategoryFormDialog from './CategoryFormDialog';
 import CsvImportDialog from './CsvImportDialog';
 import {
   AlertDialog,
@@ -58,6 +60,9 @@ interface CatalogueScreenProps {
   onCreateSupplier: (data: any) => void;
   onUpdateSupplier: (id: string, data: Partial<Supplier>) => void;
   onDeleteSupplier: (id: string) => void;
+  onCreateCategory: (data: any) => void;
+  onUpdateCategory: (id: string, data: Partial<Category>) => void;
+  onDeleteCategory: (id: string) => void;
   onImportProducts: (products: any[]) => Promise<void>;
 }
 
@@ -72,6 +77,9 @@ export default function CatalogueScreen({
   onCreateSupplier,
   onUpdateSupplier,
   onDeleteSupplier,
+  onCreateCategory,
+  onUpdateCategory,
+  onDeleteCategory,
   onImportProducts
 }: CatalogueScreenProps) {
 
@@ -90,9 +98,13 @@ export default function CatalogueScreen({
   // Correction: Typage de l'état de suppression
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
-    type: 'product' | 'supplier' | null;
+    type: 'product' | 'supplier' | 'category' | null;
     id: string | null;
   }>({ isOpen: false, type: null, id: null });
+
+  // Category dialog state
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
 
   // Filter products by search and category
   const filteredProducts = useMemo(() => {
@@ -155,9 +167,12 @@ export default function CatalogueScreen({
     if (activeTab === 'products') {
       setEditingProduct(null);
       setIsProductDialogOpen(true);
-    } else {
+    } else if (activeTab === 'suppliers') {
       setEditingSupplier(null);
       setIsSupplierDialogOpen(true);
+    } else if (activeTab === 'categories') {
+      setEditingCategory(null);
+      setIsCategoryDialogOpen(true);
     }
   };
 
@@ -171,7 +186,12 @@ export default function CatalogueScreen({
     setIsSupplierDialogOpen(true);
   };
 
-  const handleDeleteClick = (type: 'product' | 'supplier', id: string) => {
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setIsCategoryDialogOpen(true);
+  };
+
+  const handleDeleteClick = (type: 'product' | 'supplier' | 'category', id: string) => {
     setDeleteConfirm({ isOpen: true, type, id });
   };
 
@@ -180,6 +200,8 @@ export default function CatalogueScreen({
       onDeleteProduct(deleteConfirm.id);
     } else if (deleteConfirm.type === 'supplier' && deleteConfirm.id) {
       onDeleteSupplier(deleteConfirm.id);
+    } else if (deleteConfirm.type === 'category' && deleteConfirm.id) {
+      onDeleteCategory(deleteConfirm.id);
     }
     setDeleteConfirm({ isOpen: false, type: null, id: null });
   };
@@ -202,6 +224,16 @@ export default function CatalogueScreen({
     }
     setIsSupplierDialogOpen(false);
     setEditingSupplier(null);
+  };
+
+  const handleCategorySubmit = (data: any) => {
+    if (editingCategory) {
+      onUpdateCategory(editingCategory.id, data);
+    } else {
+      onCreateCategory(data);
+    }
+    setIsCategoryDialogOpen(false);
+    setEditingCategory(null);
   };
 
   return (
@@ -240,22 +272,30 @@ export default function CatalogueScreen({
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4 bg-gray-100 p-1 min-h-[52px] rounded-xl">
-          <TabsTrigger 
-            value="products" 
+        <TabsList className="grid w-full grid-cols-3 mb-4 bg-gray-100 p-1 min-h-[52px] rounded-xl">
+          <TabsTrigger
+            value="products"
             className="rounded-lg min-h-[44px] data-[state=active]:bg-white data-[state=active]:shadow-sm touch-manipulation"
           >
             <Package className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Produits ({products.length})</span>
             <span className="sm:hidden">Produits</span>
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="suppliers"
             className="rounded-lg min-h-[44px] data-[state=active]:bg-white data-[state=active]:shadow-sm touch-manipulation"
           >
             <Truck className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Fournisseurs ({suppliers.length})</span>
             <span className="sm:hidden">Fournisseurs</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="categories"
+            className="rounded-lg min-h-[44px] data-[state=active]:bg-white data-[state=active]:shadow-sm touch-manipulation"
+          >
+            <Tag className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Catégories ({categories.length})</span>
+            <span className="sm:hidden">Catégories</span>
           </TabsTrigger>
         </TabsList>
 
@@ -512,6 +552,71 @@ export default function CatalogueScreen({
             </Card>
           )}
         </TabsContent>
+
+        {/* Categories Tab */}
+        <TabsContent value="categories" className="mt-4">
+          {categories.length === 0 ? (
+            <EmptyState
+              type="categories"
+              title="Aucune catégorie"
+              description="Ajoutez des catégories pour organiser vos produits"
+            />
+          ) : (
+            <Card className="overflow-hidden border-0 shadow-sm rounded-2xl">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold text-sm">Nom</TableHead>
+                      <TableHead className="font-semibold text-sm">Produits associés</TableHead>
+                      <TableHead className="font-semibold text-sm text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {categories.map((category) => {
+                      const productCount = products.filter(p => p.category_id === category.id).length;
+
+                      return (
+                        <TableRow key={category.id} className="hover:bg-gray-50">
+                          <TableCell className="font-medium text-gray-900 text-sm">
+                            <div className="flex items-center gap-2">
+                              <Tag className="w-4 h-4 text-gray-400" />
+                              {category.name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-gray-600 text-sm">
+                            {productCount} produit{productCount !== 1 ? 's' : ''}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditCategory(category)}
+                                className="min-h-[44px] min-w-[44px] hover:bg-gray-100 touch-manipulation"
+                              >
+                                <Pencil className="w-5 h-5 text-gray-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteClick('category', category.id)}
+                                className="min-h-[44px] min-w-[44px] hover:bg-red-50 touch-manipulation"
+                                disabled={productCount > 0}
+                              >
+                                <Trash2 className={`w-5 h-5 ${productCount > 0 ? 'text-gray-400' : 'text-red-600'}`} />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Floating Action Button */}
@@ -577,6 +682,19 @@ export default function CatalogueScreen({
         suppliers={suppliers}
         categories={categories}
       />
+
+      {/* Category Dialog */}
+      {isCategoryDialogOpen && (
+        <CategoryFormDialog
+          isOpen={isCategoryDialogOpen}
+          onClose={() => {
+            setIsCategoryDialogOpen(false);
+            setEditingCategory(null);
+          }}
+          onSubmit={handleCategorySubmit}
+          category={editingCategory}
+        />
+      )}
     </div>
   );
 }

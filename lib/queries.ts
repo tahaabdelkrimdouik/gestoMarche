@@ -47,6 +47,38 @@ export const fetchCategories = async (): Promise<Category[]> => {
   return data ?? [];
 };
 
+export const createCategory = async (category: Omit<Category, 'id'>): Promise<Category> => {
+  const { data, error } = await supabase
+    .from("categories")
+    .insert([category])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const updateCategory = async (id: string, category: Partial<Category>): Promise<Category> => {
+  const { data, error } = await supabase
+    .from("categories")
+    .update(category)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const deleteCategory = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from("categories")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+};
+
 export const fetchSuppliers = async (): Promise<Supplier[]> => {
   const { data, error } = await supabase
     .from("suppliers")

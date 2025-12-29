@@ -8,7 +8,7 @@ import CatalogueScreen from '@/components/CatalogueScreen';
 
 // TYPES & QUERIES
 import type { Market, Product, ProductWithMarkets, Supplier, Category } from '@/lib/types';
-import { fetchProducts, fetchSuppliers, fetchMarkets, fetchCategories } from '@/lib/queries';
+import { fetchProducts, fetchSuppliers, fetchMarkets, fetchCategories, createCategory, updateCategory, deleteCategory } from '@/lib/queries';
 import { notify } from '@/lib/utils/notify';
 
 export default function CataloguePage() {
@@ -164,6 +164,41 @@ export default function CataloguePage() {
     },
   });
 
+  // CATEGORY MUTATIONS
+  const createCategoryMutation = useMutation({
+    mutationFn: createCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      notify.success('Catégorie créée avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la création de la catégorie');
+    },
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Category> }) =>
+      updateCategory(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      notify.success('Catégorie mise à jour avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la mise à jour de la catégorie');
+    },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      notify.success('Catégorie supprimée avec succès');
+    },
+    onError: () => {
+      notify.error('Erreur lors de la suppression de la catégorie');
+    },
+  });
+
   // BULK IMPORT MUTATION
   const createBulkProductsMutation = useMutation({
     mutationFn: async (products: any[]) => {
@@ -229,6 +264,9 @@ export default function CataloguePage() {
   const handleCreateSupplier = (data: any) => createSupplierMutation.mutate(data);
   const handleUpdateSupplier = (id: string, data: any) => updateSupplierMutation.mutate({ id, data });
   const handleDeleteSupplier = (id: string) => deleteSupplierMutation.mutate(id);
+  const handleCreateCategory = (data: any) => createCategoryMutation.mutate(data);
+  const handleUpdateCategory = (id: string, data: any) => updateCategoryMutation.mutate({ id, data });
+  const handleDeleteCategory = (id: string) => deleteCategoryMutation.mutate(id);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -245,6 +283,9 @@ export default function CataloguePage() {
           onCreateSupplier={handleCreateSupplier}
           onUpdateSupplier={handleUpdateSupplier}
           onDeleteSupplier={handleDeleteSupplier}
+          onCreateCategory={handleCreateCategory}
+          onUpdateCategory={handleUpdateCategory}
+          onDeleteCategory={handleDeleteCategory}
           onImportProducts={async (products: any[]) => {
             await createBulkProductsMutation.mutateAsync(products);
           }}

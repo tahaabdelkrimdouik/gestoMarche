@@ -1,13 +1,14 @@
 import React from 'react';
-import { Package, Search, Truck } from 'lucide-react';
+import { Package, Search, Truck, Tag } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const icons = {
   products: Package,
   search: Search,
   suppliers: Truck,
+  categories: Tag,
 };
-type EmptyStateType = 'products' | 'search' | 'suppliers';
+type EmptyStateType = 'products' | 'search' | 'suppliers' | 'categories';
 
 // 2. Définition des Props
 interface EmptyStateProps {
