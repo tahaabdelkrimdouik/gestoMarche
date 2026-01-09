@@ -18,6 +18,7 @@ export interface Category {
 
 export interface ProductMarket {
   market_id: string;
+  status: StockStatus; // Status is now per product-market combination
 }
 
 export type Product = {
@@ -26,9 +27,9 @@ export type Product = {
   code: string;
   purchase_price: number | null;
   sale_price: number | null;
-  status: StockStatus;
   supplier_id: string | null;
   category_id: string;
+  // Note: status is removed from Product - it's now in ProductMarket
 };
 
 export type ProductWithMarkets = Product & {

@@ -7,7 +7,7 @@ import BottomNav from '@/components/BottomNav';
 import CatalogueScreen from '@/components/CatalogueScreen';
 
 // TYPES & QUERIES
-import type { Market, Product, ProductWithMarkets, Supplier, Category } from '@/lib/types';
+import type { Market, Product, ProductWithMarkets, ProductMarket, Supplier, Category, StockStatus } from '@/lib/types';
 import { fetchProducts, fetchSuppliers, fetchMarkets, fetchCategories, createCategory, updateCategory, deleteCategory } from '@/lib/queries';
 import { notify } from '@/lib/utils/notify';
 
@@ -38,25 +38,43 @@ export default function CataloguePage() {
   // PRODUCT MUTATIONS
   const createProductMutation = useMutation({
     mutationFn: async (newProduct: any) => {
-      // Map UI fields to DB schema
+      // Map UI fields to DB schema (status is no longer in products table)
       const payload: any = {
         name: newProduct.name,
         code: newProduct.code || null,
-        status: newProduct.status,
         supplier_id: newProduct.supplier_id || null,
         category_id: newProduct.category_id,
         purchase_price: newProduct.prix_achat !== undefined ? newProduct.prix_achat : newProduct.purchase_price,
         sale_price: newProduct.prix_vente !== undefined ? newProduct.prix_vente : newProduct.sale_price,
       };
 
-      // Insert product first
+      // 1. Insert product first
       const { data: inserted, error: insertErr } = await supabase.from('products').insert([payload]).select().single();
       if (insertErr) throw insertErr;
 
-      // If a market was provided from the form (single market), insert relation into product_markets
-      const marketId = newProduct.market_id;
-      if (marketId) {
-        await supabase.from('product_markets').insert([{ product_id: inserted.id, market_id: marketId }]);
+      // 2. Handle market relationships with status per market
+      // newProduct.market_ids can be an array of strings or array of objects {market_id, status}
+      const marketData = newProduct.market_ids || (newProduct.market_id ? [newProduct.market_id] : []);
+      
+      // 3. Insert rows into junction table for each selected market with status
+      if (marketData.length > 0) {
+        const marketRelations = marketData.map((market: string | { market_id: string; status?: string }) => {
+          // Handle both formats: string (market_id) or object {market_id, status}
+          const marketId = typeof market === 'string' ? market : market.market_id;
+          const status = (typeof market === 'object' && market.status) ? market.status : (newProduct.status || 'available');
+          
+          return {
+            product_id: inserted.id,
+            market_id: marketId,
+            status: status, // Status per market-product combination
+          };
+        });
+        
+        const { error: marketErr } = await supabase
+          .from('product_markets')
+          .insert(marketRelations);
+        
+        if (marketErr) throw marketErr;
       }
     },
     onSuccess: () => {
@@ -72,7 +90,7 @@ export default function CataloguePage() {
     mutationFn: async (product: ProductWithMarkets) => {
       const { product_markets, ...productData } = product;
 
-      // 1️⃣ Update product (WITHOUT relations)
+      // 1. Update product scalar fields (WITHOUT relations and WITHOUT status)
       const { error: productError } = await supabase
         .from('products')
         .update({
@@ -80,7 +98,6 @@ export default function CataloguePage() {
           code: productData.code || null,
           purchase_price: productData.purchase_price,
           sale_price: productData.sale_price,
-          status: productData.status,
           supplier_id: productData.supplier_id,
           category_id: productData.category_id,
         })
@@ -88,21 +105,25 @@ export default function CataloguePage() {
 
       if (productError) throw productError;
 
-      // 2️⃣ Sync markets (relation table)
-      await supabase
+      // 2. Delete ALL existing entries in product_markets for this product_id
+      const { error: deleteError } = await supabase
         .from('product_markets')
         .delete()
         .eq('product_id', productData.id);
 
-      if (product_markets?.length) {
+      if (deleteError) throw deleteError;
+
+      // 3. Insert NEW rows into product_markets for the currently selected market IDs with status
+      if (product_markets && product_markets.length > 0) {
+        const marketRelations = product_markets.map(pm => ({
+          product_id: productData.id,
+          market_id: pm.market_id,
+          status: pm.status || 'available', // Include status per market
+        }));
+
         const { error: marketsError } = await supabase
           .from('product_markets')
-          .insert(
-            product_markets.map(pm => ({
-              product_id: productData.id,
-              market_id: pm.market_id,
-            }))
-          );
+          .insert(marketRelations);
 
         if (marketsError) throw marketsError;
       }
@@ -204,13 +225,12 @@ export default function CataloguePage() {
     mutationFn: async (products: any[]) => {
       // Process all products in parallel
       const productPromises = products.map(async (product) => {
-        // Insert product first
+        // 1. Insert product first (status is no longer in products table)
         const { data: inserted, error: insertErr } = await supabase
           .from('products')
           .insert([{
             name: product.name,
             code: product.code,
-            status: product.status,
             supplier_id: product.supplier_id,
             category_id: product.category_id,
             purchase_price: product.purchase_price,
@@ -221,14 +241,25 @@ export default function CataloguePage() {
 
         if (insertErr) throw insertErr;
 
-        // If market_id is provided, create the relationship
-        if (product.market_id) {
+        // 2. Handle market relationships with status per market
+        const marketData = product.market_ids || (product.market_id ? [product.market_id] : []);
+        
+        // 3. Insert rows into junction table for each selected market with status
+        if (marketData.length > 0) {
+          const marketRelations = marketData.map((market: string | { market_id: string; status?: string }) => {
+            const marketId = typeof market === 'string' ? market : market.market_id;
+            const status = (typeof market === 'object' && market.status) ? market.status : (product.status || 'available');
+            
+            return {
+              product_id: inserted.id,
+              market_id: marketId,
+              status: status, // Status per market-product combination
+            };
+          });
+
           const { error: marketErr } = await supabase
             .from('product_markets')
-            .insert([{
-              product_id: inserted.id,
-              market_id: product.market_id,
-            }]);
+            .insert(marketRelations);
 
           if (marketErr) throw marketErr;
         }
@@ -250,13 +281,53 @@ export default function CataloguePage() {
 
   // Wrapper handlers
   const handleCreateProduct = (data: any) => createProductMutation.mutate(data);
-  const handleUpdateProduct = (id: string, data: Partial<Product>) => {
-    // Find the current product to get its product_markets data
+  const handleUpdateProduct = (id: string, data: Partial<Product> & { market_id?: string; market_ids?: string[] | Array<{ market_id: string; status?: string }> }) => {
+    // Find the current product to get its existing product_markets data
     const currentProduct = products.find(p => p.id === id);
     if (currentProduct) {
+      // Convert market_id (single) or market_ids (array) from form to product_markets array format with status
+      let product_markets: Array<{ market_id: string; status: StockStatus }> = [];
+      
+      if (data.market_ids && Array.isArray(data.market_ids)) {
+        // If market_ids array is provided, check if it's array of strings or objects
+        if (data.market_ids.length > 0 && typeof data.market_ids[0] === 'object') {
+          // Array of objects with market_id and status
+          product_markets = (data.market_ids as Array<{ market_id: string; status?: StockStatus }>).map(m => ({
+            market_id: m.market_id,
+            status: (m.status || 'available') as StockStatus
+          }));
+        } else {
+          // Array of strings (market IDs) - use existing status or default
+          product_markets = (data.market_ids as string[]).map(marketId => {
+            const existing = currentProduct.product_markets?.find(pm => pm.market_id === marketId);
+            return {
+              market_id: marketId,
+              status: (existing?.status || 'available') as StockStatus
+            };
+          });
+        }
+      } else if (data.market_id) {
+        // If single market_id is provided, convert to array with default status
+        const existing = currentProduct.product_markets?.find(pm => pm.market_id === data.market_id);
+        product_markets = [{ 
+          market_id: data.market_id,
+          status: (existing?.status || 'available') as StockStatus
+        }];
+      } else if (currentProduct.product_markets && currentProduct.product_markets.length > 0) {
+        // If no market data in update, preserve existing markets with their statuses
+        product_markets = currentProduct.product_markets.map(pm => ({
+          market_id: pm.market_id,
+          status: (pm.status || 'available') as StockStatus
+        }));
+      }
+
+      // Remove market_id and market_ids from data before passing to mutation
+      const { market_id, market_ids, ...productData } = data;
+
       updateProductMutation.mutate({
         ...currentProduct,
-        ...data,
+        ...productData,
+        product_markets,
       });
     }
   };

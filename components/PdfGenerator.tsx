@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
-import type { Supplier, Product } from '@/lib/types';
+import type { Supplier, ProductWithMarkets } from '@/lib/types';
 
-export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Product[]) => {
+export const generatePurchaseOrderPDF = async (supplier: Supplier, products: ProductWithMarkets[]) => {
   const pdf = new jsPDF();
 
   // Colors and styling
@@ -84,9 +84,14 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
     // Product code
     pdf.text(product.code || 'N/A', 120, yPosition);
 
+    // Get the most critical status for this product across all markets
+    const hasOut = product.product_markets?.some((pm: any) => pm.status === 'out');
+    const hasLow = product.product_markets?.some((pm: any) => pm.status === 'low');
+    const mostCriticalStatus = hasOut ? 'out' : 'low';
+    const statusText = mostCriticalStatus === 'out' ? 'Épuisé' : 'Presque fini';
+
     // Status with color
-    const statusText = product.status === 'out' ? 'Épuisé' : 'Presque fini';
-    if (product.status === 'out') {
+    if (mostCriticalStatus === 'out') {
       pdf.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
     } else {
       pdf.setTextColor(255, 165, 0);
@@ -138,12 +143,19 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
     supplier: supplier.name,
     date: currentDate,
     orderNumber,
-    products: products.map(p => ({
-      name: p.name,
-      code: p.code,
-      status: p.status,
-      purchase_price: p.purchase_price,
-    })),
+    products: products.map(p => {
+      // Get the most critical status for this product across all markets
+      const hasOut = p.product_markets?.some((pm: any) => pm.status === 'out');
+      const hasLow = p.product_markets?.some((pm: any) => pm.status === 'low');
+      const mostCriticalStatus = hasOut ? 'out' : 'low';
+
+      return {
+        name: p.name,
+        code: p.code,
+        status: mostCriticalStatus,
+        purchase_price: p.purchase_price,
+      };
+    }),
     totals: {
       totalHT: totalHT.toFixed(2),
       tva: tva.toFixed(2),

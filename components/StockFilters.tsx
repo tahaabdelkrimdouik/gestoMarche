@@ -11,7 +11,7 @@ const filters = [
 
 export default function StockFilters({ activeFilter, onFilterChange }: StockFiltersProps) {
   return (
-    <div className="px-4 py-3">
+    <div className="px-4 py-3 bg-white border-t border-gray-100">
       <div className="grid grid-cols-3 gap-2">
         {filters.map((filter) => {
           const isActive = activeFilter === filter.id;
