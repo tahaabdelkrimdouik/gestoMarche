@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "GestoMarché",
   description: "Manage stock, suppliers and catalogue",
   manifest: "/manifest.json",
+};
+
+export const viewport = {
   themeColor: "#4f46e5",
 };
 

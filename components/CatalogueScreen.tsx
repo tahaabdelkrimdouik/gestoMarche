@@ -28,6 +28,10 @@ import {
   Search,
   Filter,
   Upload,
+  ChevronDown,
+  ChevronUp,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import EmptyState from './EmptyState';
 // Assurez-vous que ces composants existent ou commentez-les si nécessaire
@@ -46,7 +50,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { Market, Product, ProductWithMarkets, Supplier, Category } from '@/lib/types';
+import type { Market, Product, ProductWithMarkets, Supplier, Category, StockStatus } from '@/lib/types';
 
 // 1. Interface des Props
 interface CatalogueScreenProps {
@@ -106,6 +110,10 @@ export default function CatalogueScreen({
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
 
+  // Multi-select state for bulk delete
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+
   // Filter products by search and category
   const filteredProducts = useMemo(() => {
     let filtered = products;
@@ -124,11 +132,11 @@ export default function CatalogueScreen({
       );
     }
 
-    // Sort by product code (ascending)
+    // Sort by product name (ascending) - alphabetical order
     filtered.sort((a, b) => {
-      const codeA = (a.code || '').toLowerCase();
-      const codeB = (b.code || '').toLowerCase();
-      return codeA.localeCompare(codeB);
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
     });
 
     return filtered;
@@ -151,12 +159,6 @@ export default function CatalogueScreen({
     return suppliers.find(s => s.id === supplierId)?.name || 'N/A';
   };
 
-  const getMarketName = (marketId: string | null | undefined) => {
-      // Note: Product a maintenant product_markets[], cette fonction sert d'helper simple
-      // Si un produit a plusieurs marchés, il faudrait adapter l'affichage.
-      if (!marketId) return 'N/A';
-      return markets.find(m => m.id === marketId)?.name || 'N/A';
-  };
 
   const calculateMargin = (prixAchat: number | null | undefined, prixVente: number | null | undefined) => {
     if (!prixAchat || !prixVente) return null;
@@ -197,7 +199,14 @@ export default function CatalogueScreen({
 
   const handleConfirmDelete = () => {
     if (deleteConfirm.type === 'product' && deleteConfirm.id) {
-      onDeleteProduct(deleteConfirm.id);
+      // Handle bulk delete (comma-separated IDs) or single delete
+      if (deleteConfirm.id.includes(',')) {
+        const ids = deleteConfirm.id.split(',');
+        ids.forEach(id => onDeleteProduct(id));
+        setSelectedProductIds(new Set()); // Clear selection after bulk delete
+      } else {
+        onDeleteProduct(deleteConfirm.id);
+      }
     } else if (deleteConfirm.type === 'supplier' && deleteConfirm.id) {
       onDeleteSupplier(deleteConfirm.id);
     } else if (deleteConfirm.type === 'category' && deleteConfirm.id) {
@@ -214,6 +223,48 @@ export default function CatalogueScreen({
     }
     setIsProductDialogOpen(false);
     setEditingProduct(null);
+  };
+
+  // Multi-select handlers
+  const handleToggleProductSelect = (productId: string) => {
+    setSelectedProductIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProductIds.size === filteredProducts.length) {
+      setSelectedProductIds(new Set());
+    } else {
+      setSelectedProductIds(new Set(filteredProducts.map(p => p.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedProductIds.size === 0) return;
+    setDeleteConfirm({ 
+      isOpen: true, 
+      type: 'product', 
+      id: Array.from(selectedProductIds).join(',') // Pass comma-separated IDs
+    });
+  };
+
+  const handleToggleMarketsExpansion = (productId: string) => {
+    setExpandedProductIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
   };
 
   const handleSupplierSubmit = (data: any) => {
@@ -277,7 +328,7 @@ export default function CatalogueScreen({
             value="products"
             className="rounded-lg min-h-[44px] data-[state=active]:bg-white data-[state=active]:shadow-sm touch-manipulation"
           >
-            <Package className="w-4 h-4 mr-2" />
+            <Package className="w-4 h-4" />
             <span className="hidden sm:inline">Produits ({products.length})</span>
             <span className="sm:hidden">Produits</span>
           </TabsTrigger>
@@ -285,7 +336,7 @@ export default function CatalogueScreen({
             value="suppliers"
             className="rounded-lg min-h-[44px] data-[state=active]:bg-white data-[state=active]:shadow-sm touch-manipulation"
           >
-            <Truck className="w-4 h-4 mr-2" />
+            <Truck className="w-4 h-4" />
             <span className="hidden sm:inline">Fournisseurs ({suppliers.length})</span>
             <span className="sm:hidden">Fournisseurs</span>
           </TabsTrigger>
@@ -293,7 +344,7 @@ export default function CatalogueScreen({
             value="categories"
             className="rounded-lg min-h-[44px] data-[state=active]:bg-white data-[state=active]:shadow-sm touch-manipulation"
           >
-            <Tag className="w-4 h-4 mr-2" />
+            <Tag className="w-4 h-4" />
             <span className="hidden sm:inline">Catégories ({categories.length})</span>
             <span className="sm:hidden">Catégories</span>
           </TabsTrigger>
@@ -329,6 +380,24 @@ export default function CatalogueScreen({
             />
           ) : (
             <>
+              {/* Bulk Actions Bar */}
+              {selectedProductIds.size > 0 && (
+                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                  <span className="text-sm font-medium text-emerald-900">
+                    {selectedProductIds.size} produit{selectedProductIds.size > 1 ? 's' : ''} sélectionné{selectedProductIds.size > 1 ? 's' : ''}
+                  </span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Supprimer
+                  </Button>
+                </div>
+              )}
+
               {/* Mobile Card View */}
               <div className="block md:hidden space-y-3">
                 {filteredProducts.map((product) => {
@@ -338,9 +407,25 @@ export default function CatalogueScreen({
                     return categories.find(c => c.id === categoryId)?.name || 'N/A';
                   };
 
+                  const isSelected = selectedProductIds.has(product.id);
+                  const isExpanded = expandedProductIds.has(product.id);
+                  const hasMarkets = product.product_markets && product.product_markets.length > 0;
+
                   return (
                     <Card key={product.id} className="p-4 border-0 shadow-sm rounded-2xl">
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        {/* Checkbox for selection */}
+                        <button
+                          onClick={() => handleToggleProductSelect(product.id)}
+                          className="mt-1 flex-shrink-0"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-5 h-5 text-emerald-600" />
+                          ) : (
+                            <Square className="w-5 h-5 text-gray-400" />
+                          )}
+                        </button>
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
                             <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
@@ -355,6 +440,49 @@ export default function CatalogueScreen({
                               <span>Achat: {product.purchase_price ? `${product.purchase_price.toFixed(2)} €` : '-'}</span>
                               <span>Vente: {product.sale_price ? `${product.sale_price.toFixed(2)} €` : '-'}</span>
                             </div>
+                            
+                            {/* Markets with collapsible accordion */}
+                            {hasMarkets && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={() => handleToggleMarketsExpansion(product.id)}
+                                  className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="w-4 h-4" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4" />
+                                  )}
+                                  <span>Marchés ({product.product_markets.length})</span>
+                                </button>
+                                {isExpanded && (
+                                  <div className="mt-2 space-y-1.5 pl-6">
+                                    {product.product_markets.map((pm) => {
+                                      const market = markets.find(m => m.id === pm.market_id);
+                                      const statusColors: Record<StockStatus, string> = {
+                                        available: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                                        low: 'bg-amber-100 text-amber-700 border-amber-200',
+                                        out: 'bg-red-100 text-red-700 border-red-200',
+                                      };
+                                      const statusLabels: Record<StockStatus, string> = {
+                                        available: 'Disponible',
+                                        low: 'À racheter',
+                                        out: 'Épuisé',
+                                      };
+                                      return (
+                                        <Badge
+                                          key={pm.market_id}
+                                          variant="outline"
+                                          className={`text-xs ${statusColors[pm.status || 'available']}`}
+                                        >
+                                          {market?.name || 'N/A'} - {statusLabels[pm.status || 'available']}
+                                        </Badge>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {margin !== null && (
                               <div className="mt-2">
                                 <Badge
@@ -402,6 +530,18 @@ export default function CatalogueScreen({
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-gray-50">
+                          <TableHead className="w-12">
+                            <button
+                              onClick={handleSelectAll}
+                              className="flex items-center justify-center"
+                            >
+                              {selectedProductIds.size === filteredProducts.length && filteredProducts.length > 0 ? (
+                                <CheckSquare className="w-5 h-5 text-emerald-600" />
+                              ) : (
+                                <Square className="w-5 h-5 text-gray-400" />
+                              )}
+                            </button>
+                          </TableHead>
                           <TableHead className="font-semibold text-sm whitespace-nowrap">Produit</TableHead>
                           <TableHead className="font-semibold text-sm whitespace-nowrap">Code</TableHead>
                           <TableHead className="font-semibold text-sm whitespace-nowrap">Catégorie</TableHead>
@@ -409,6 +549,7 @@ export default function CatalogueScreen({
                           <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix achat</TableHead>
                           <TableHead className="font-semibold text-sm text-right whitespace-nowrap">Prix vente</TableHead>
                           <TableHead className="font-semibold text-sm text-center whitespace-nowrap">Marge</TableHead>
+                          <TableHead className="font-semibold text-sm whitespace-nowrap">Marchés</TableHead>
                           <TableHead className="font-semibold text-sm text-center whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -419,9 +560,24 @@ export default function CatalogueScreen({
                             if (!categoryId) return 'N/A';
                             return categories.find(c => c.id === categoryId)?.name || 'N/A';
                           };
+                          const isSelected = selectedProductIds.has(product.id);
+                          const isExpanded = expandedProductIds.has(product.id);
+                          const hasMarkets = product.product_markets && product.product_markets.length > 0;
 
                           return (
                             <TableRow key={product.id} className="hover:bg-gray-50">
+                              <TableCell>
+                                <button
+                                  onClick={() => handleToggleProductSelect(product.id)}
+                                  className="flex items-center justify-center"
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare className="w-5 h-5 text-emerald-600" />
+                                  ) : (
+                                    <Square className="w-5 h-5 text-gray-400" />
+                                  )}
+                                </button>
+                              </TableCell>
                               <TableCell className="min-w-[120px]">
                                 <div className="font-medium text-gray-900 text-sm">{product.name}</div>
                               </TableCell>
@@ -456,6 +612,51 @@ export default function CatalogueScreen({
                                   </Badge>
                                 ) : (
                                   <span className="text-gray-400 text-sm">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="min-w-[150px]">
+                                {hasMarkets ? (
+                                  <div>
+                                    <button
+                                      onClick={() => handleToggleMarketsExpansion(product.id)}
+                                      className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                      ) : (
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      )}
+                                      <span>Marchés ({product.product_markets.length})</span>
+                                    </button>
+                                    {isExpanded && (
+                                      <div className="mt-2 space-y-1.5">
+                                        {product.product_markets.map((pm) => {
+                                          const market = markets.find(m => m.id === pm.market_id);
+                                          const statusColors: Record<StockStatus, string> = {
+                                            available: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                                            low: 'bg-amber-100 text-amber-700 border-amber-200',
+                                            out: 'bg-red-100 text-red-700 border-red-200',
+                                          };
+                                          const statusLabels: Record<StockStatus, string> = {
+                                            available: 'Disponible',
+                                            low: 'À racheter',
+                                            out: 'Épuisé',
+                                          };
+                                          return (
+                                            <Badge
+                                              key={pm.market_id}
+                                              variant="outline"
+                                              className={`text-xs block w-fit ${statusColors[pm.status || 'available']}`}
+                                            >
+                                              {market?.name || 'N/A'} - {statusLabels[pm.status || 'available']}
+                                            </Badge>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 text-xs">Aucun marché</span>
                                 )}
                               </TableCell>
                               <TableCell>
@@ -658,7 +859,16 @@ export default function CatalogueScreen({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est irréversible.
+              {deleteConfirm.id && deleteConfirm.id.includes(',') ? (
+                <>
+                  Êtes-vous sûr de vouloir supprimer {deleteConfirm.id.split(',').length} produit{deleteConfirm.id.split(',').length > 1 ? 's' : ''} ? 
+                  Cette action est irréversible.
+                </>
+              ) : (
+                <>
+                  Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est irréversible.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

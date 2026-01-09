@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generatePurchaseOrderPDF, sharePDF } from '@/components/PdfGenerator';
 import { notify } from '@/lib/utils/notify';
-import { Product, Supplier } from '@/lib/types';
+import { ProductWithMarkets, Supplier } from '@/lib/types';
 
 const statusConfig = {
   low: {
@@ -21,23 +21,30 @@ const statusConfig = {
 };
 interface SupplierDrawerProps {
     supplier: Supplier;
-    products: Product[];
+    products: ProductWithMarkets[];
     onClose: () => void;
     isOpen: boolean;
 }
 
 export default function SupplierDrawer({ isOpen, supplier, products, onClose }: SupplierDrawerProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const criticalProducts = products.filter(p => p.status === 'low' || p.status === 'out');
+  const criticalProducts = products.filter(p =>
+    p.product_markets?.some((pm: any) => pm.status === 'low' || pm.status === 'out')
+  );
 
   const handleShare = () => {
-    const productList = criticalProducts
-      .filter(p => p.status in statusConfig)
-      .map(p => `• ${p.name} (${statusConfig[p.status as keyof typeof statusConfig]?.label})`)
-      .join('\n');
-    
+    const productList = criticalProducts.map(p => {
+      // Get the most critical status for this product across all markets
+      const hasOut = p.product_markets?.some((pm: any) => pm.status === 'out');
+      const hasLow = p.product_markets?.some((pm: any) => pm.status === 'low');
+      const mostCriticalStatus = hasOut ? 'out' : 'low';
+      const config = statusConfig[mostCriticalStatus as keyof typeof statusConfig];
+
+      return `• ${p.name} (${config?.label})`;
+    }).join('\n');
+
     const message = `🛒 Liste de réapprovisionnement\n\nFournisseur: ${supplier?.name}\n\nProduits à commander:\n${productList}`;
-    
+
     const whatsappUrl = `https://wa.me/${supplier?.phone_number?.toString().replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
@@ -46,20 +53,20 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
     setIsGeneratingPDF(true);
 
     try {
-      // Use promise toast for PDF generation
-      const pdfPromise = generatePurchaseOrderPDF(supplier, criticalProducts).then(async (pdfData) => {
-        // Partager ou télécharger selon la plateforme
-        await sharePDF(pdfData);
-        return pdfData;
-      });
+      // Generate the PDF
+      const pdfData = await generatePurchaseOrderPDF(supplier, criticalProducts);
 
-      await notify.promise(pdfPromise, {
-        loading: 'Génération du bon de commande...',
-        success: 'Bon de commande téléchargé avec succès',
-        error: 'Erreur lors de la génération du PDF',
-      });
+      // Download immediately
+      const success = await sharePDF(pdfData);
+
+      if (success) {
+        notify.success('Bon de commande téléchargé avec succès');
+      } else {
+        notify.error('Erreur lors du téléchargement du PDF');
+      }
     } catch (error) {
       console.error('❌ Erreur lors de la génération du PDF:', error);
+      notify.error('Erreur lors de la génération du PDF');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -141,7 +148,11 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose }: 
               ) : (
                 <div className="max-h-[250px] overflow-y-auto space-y-3">
                   {criticalProducts.map((product) => {
-                    const config = statusConfig[product.status as keyof typeof statusConfig];
+                    // Get the most critical status for this product across all markets
+                    const hasOut = product.product_markets?.some((pm: any) => pm.status === 'out');
+                    const hasLow = product.product_markets?.some((pm: any) => pm.status === 'low');
+                    const mostCriticalStatus = hasOut ? 'out' : 'low';
+                    const config = statusConfig[mostCriticalStatus as keyof typeof statusConfig];
                     const Icon = config?.icon;
 
                     return (

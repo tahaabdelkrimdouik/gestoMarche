@@ -66,9 +66,13 @@ export default function SuppliersPage() {
   }, [suppliers, supplierSearch]);
 
   const getSupplierAlertCount = (supplierId: string): number => {
-    return products.filter(
-      (p) => p.supplier_id === supplierId && (p.status === 'low' || p.status === 'out')
-    ).length;
+    return products.filter((p) => {
+      // Check if product belongs to this supplier
+      if (p.supplier_id !== supplierId) return false;
+
+      // Check if product has any market with 'low' or 'out' status
+      return p.product_markets?.some((pm: any) => pm.status === 'low' || pm.status === 'out');
+    }).length;
   };
 
   const supplierProducts = useMemo(() => {

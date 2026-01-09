@@ -3,20 +3,23 @@ import type { Product, ProductWithMarkets, Supplier, Market, Category } from "@/
 
 export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
   // First fetch products (avoid nesting relations in the same select to prevent schema-cache errors)
+  // Sorted alphabetically by name
+  // Note: status is no longer in products table, it's in product_markets
   const { data: products, error: prodErr } = await supabase
     .from('products')
-    .select('id, name, code, status, supplier_id, category_id, purchase_price, sale_price');
+    .select('id, name, code, supplier_id, category_id, purchase_price, sale_price')
+    .order('name', { ascending: true });
 
   if (prodErr) throw prodErr;
   const items = (products || []) as any[];
 
   if (items.length === 0) return [];
 
-  // Then fetch product_markets relations for these products
+  // Then fetch product_markets relations for these products (including status per market)
   const ids = items.map((p) => p.id);
   const { data: relations, error: relErr } = await supabase
     .from('product_markets')
-    .select('product_id, market_id')
+    .select('product_id, market_id, status')
     .in('product_id', ids as string[]);
 
   if (relErr) {
@@ -25,10 +28,13 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
     return items.map((p) => ({ ...p, product_markets: [] })) as ProductWithMarkets[];
   }
 
-  const relsByProduct: Record<string, { market_id: string }[]> = {};
+  const relsByProduct: Record<string, { market_id: string; status: string }[]> = {};
   (relations || []).forEach((r: any) => {
     relsByProduct[r.product_id] = relsByProduct[r.product_id] || [];
-    relsByProduct[r.product_id].push({ market_id: r.market_id });
+    relsByProduct[r.product_id].push({ 
+      market_id: r.market_id,
+      status: r.status || 'available' // Default to 'available' if status is null
+    });
   });
 
   return items.map((p) => ({
@@ -41,7 +47,7 @@ export const fetchCategories = async (): Promise<Category[]> => {
   const { data, error } = await supabase
     .from("categories")
     .select("*")
-    .order("name");
+    .order("name", { ascending: true });
 
   if (error) throw error;
   return data ?? [];
@@ -83,7 +89,7 @@ export const fetchSuppliers = async (): Promise<Supplier[]> => {
   const { data, error } = await supabase
     .from("suppliers")
     .select("*")
-    .order("name");
+    .order("name", { ascending: true });
 
   if (error) throw error;
   return data ?? [];
@@ -92,7 +98,7 @@ export const fetchMarkets = async (): Promise<Market[]> => {
   const { data, error } = await supabase
     .from("markets") // Or "markets" depending on your table name
     .select("id, name") // Or "id, nom" if your column is still 'nom'
-    .order("name");
+    .order("name", { ascending: true });
 
   if (error) throw error;
   
