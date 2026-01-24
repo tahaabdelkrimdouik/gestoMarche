@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, Phone } from 'lucide-react';
+import { Truck, Phone, Mail } from 'lucide-react';
 import type { Supplier } from '@/lib/types';
 
 interface SupplierFormDialogProps {
@@ -27,7 +27,8 @@ export default function SupplierFormDialog({
 }: SupplierFormDialogProps) {
   const [formData, setFormData] = useState({
     name: '',
-    phone_number: ''
+    phone_number: '',
+    email: ''
   });
 
   useEffect(() => {
@@ -37,14 +38,16 @@ export default function SupplierFormDialog({
       Promise.resolve().then(() => {
         setFormData({
           name: supplier.name ?? '',
-          phone_number: supplier.phone_number ?? ''
+          phone_number: supplier.phone_number ?? '',
+          email: supplier.email ?? ''
         });
       });
     } else {
       Promise.resolve().then(() => {
         setFormData({
           name: '',
-          phone_number: ''
+          phone_number: '',
+          email: ''
         });
       });
     }
@@ -96,6 +99,22 @@ export default function SupplierFormDialog({
                 placeholder="+33 6 12 34 56 78"
                 className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
                 pattern="[\+]?[\d\s\-\(\)]*"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm">Email</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                id="email"
+                type="email"
+                inputMode="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="fournisseur@example.com"
+                className="min-h-[48px] rounded-xl pl-9 touch-manipulation"
               />
             </div>
           </div>

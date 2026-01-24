@@ -9,6 +9,7 @@ export interface Supplier {
   id: string;
   name: string;
   phone_number: string;
+  email?: string;
 }
 
 export interface Category {
