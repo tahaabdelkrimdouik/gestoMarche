@@ -52,16 +52,28 @@ export default function CataloguePage() {
       const { data: inserted, error: insertErr } = await supabase.from('products').insert([payload]).select().single();
       if (insertErr) throw insertErr;
 
-      // 2. Handle market relationships with status per market
-      // newProduct.market_ids can be an array of strings or array of objects {market_id, status}
-      const marketData = newProduct.market_ids || (newProduct.market_id ? [newProduct.market_id] : []);
+      // 2. Automatically assign product to ALL markets
+      // Fetch all markets to ensure we assign to all of them
+      const { data: allMarkets, error: marketsErr } = await supabase
+        .from('markets')
+        .select('id');
       
-      // 3. Insert rows into junction table for each selected market with status
-      if (marketData.length > 0) {
-        const marketRelations = marketData.map((market: string | { market_id: string; status?: string }) => {
+      if (marketsErr) throw marketsErr;
+
+      // 3. Use provided market_ids if available, otherwise use all markets
+      const marketData = newProduct.market_ids || [];
+      
+      // If no markets provided or if we want to ensure all markets, use all markets
+      const marketsToAssign = marketData.length > 0 
+        ? marketData 
+        : (allMarkets || []).map((m: { id: string }) => ({ market_id: m.id, status: 'available' }));
+      
+      // 4. Insert rows into junction table for each market with status
+      if (marketsToAssign.length > 0) {
+        const marketRelations = marketsToAssign.map((market: string | { market_id: string; status?: string }) => {
           // Handle both formats: string (market_id) or object {market_id, status}
           const marketId = typeof market === 'string' ? market : market.market_id;
-          const status = (typeof market === 'object' && market.status) ? market.status : (newProduct.status || 'available');
+          const status = (typeof market === 'object' && market.status) ? market.status : 'available';
           
           return {
             product_id: inserted.id,
@@ -113,9 +125,22 @@ export default function CataloguePage() {
 
       if (deleteError) throw deleteError;
 
-      // 3. Insert NEW rows into product_markets for the currently selected market IDs with status
-      if (product_markets && product_markets.length > 0) {
-        const marketRelations = product_markets.map(pm => ({
+      // 3. Automatically assign to ALL markets (products are always in all markets)
+      // Fetch all markets to ensure we assign to all of them
+      const { data: allMarkets, error: marketsFetchErr } = await supabase
+        .from('markets')
+        .select('id');
+      
+      if (marketsFetchErr) throw marketsFetchErr;
+
+      // Use provided product_markets if available, otherwise use all markets with default status
+      const marketsToAssign = product_markets && product_markets.length > 0
+        ? product_markets
+        : (allMarkets || []).map((m: { id: string }) => ({ market_id: m.id, status: 'available' as StockStatus }));
+
+      // 4. Insert NEW rows into product_markets for all markets with status
+      if (marketsToAssign.length > 0) {
+        const marketRelations = marketsToAssign.map(pm => ({
           product_id: productData.id,
           market_id: pm.market_id,
           status: pm.status || 'available', // Include status per market

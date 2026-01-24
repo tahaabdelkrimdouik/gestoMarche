@@ -45,9 +45,9 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
 
   pdf.setFontSize(12);
   pdf.setTextColor(0, 0, 0);
-  pdf.text('Mon Stock', 110, 85);
-  pdf.text('123 Rue du Commerce', 110, 95);
-  pdf.text('75001 Paris', 110, 105);
+  pdf.text('Ferhat Stock', 110, 85);
+  pdf.text('Villejuif', 110, 95);
+  pdf.text('94000 Paris', 110, 105);
 
   // Products section
   pdf.setFontSize(14);

@@ -50,25 +50,34 @@ export default function ProductFormDialog({
 
   useEffect(() => {
     if (product) {
+      // When editing, use existing markets or all markets if none exist
+      const existingMarkets = product.product_markets?.map(pm => ({
+        market_id: pm.market_id,
+        status: pm.status || 'available'
+      })) || [];
+      
+      // If product has no markets, assign to all markets
+      const marketsToUse = existingMarkets.length > 0 
+        ? existingMarkets 
+        : markets.map(m => ({ market_id: m.id, status: 'available' as StockStatus }));
+      
       setFormData({
         name: product.name,
         code: product.code || '',
         supplier_id: product.supplier_id || '',
         category_id: product.category_id || '',
-        markets: product.product_markets?.map(pm => ({
-          market_id: pm.market_id,
-          status: pm.status || 'available'
-        })) || [],
+        markets: marketsToUse,
         purchase_price: product.purchase_price?.toString() || '',
         sale_price: product.sale_price?.toString() || '',
       });
     } else {
+      // When creating, automatically assign to all markets
       setFormData({
         name: '',
         code: '',
         supplier_id: '',
         category_id: '',
-        markets: [],
+        markets: markets.map(m => ({ market_id: m.id, status: 'available' as StockStatus })),
         purchase_price: '',
         sale_price: '',
       });
@@ -77,47 +86,20 @@ export default function ProductFormDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Validate that at least one market is selected
-    if (formData.markets.length === 0) {
-      alert('Veuillez sélectionner au moins un marché');
-      return;
-    }
+    // Automatically assign to all markets if not already assigned
+    const marketsToSubmit = formData.markets.length > 0 
+      ? formData.markets 
+      : markets.map(m => ({ market_id: m.id, status: 'available' as StockStatus }));
+    
     const dataToSubmit = {
       ...formData,
-      market_ids: formData.markets, // Send markets with status
+      market_ids: marketsToSubmit, // Send markets with status (all markets by default)
       purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : undefined,
       sale_price: formData.sale_price ? parseFloat(formData.sale_price) : undefined,
     };
     onSubmit(dataToSubmit);
   };
 
-  const handleMarketToggle = (marketId: string) => {
-    setFormData(prev => {
-      const isSelected = prev.markets.some(m => m.market_id === marketId);
-      if (isSelected) {
-        // Remove market
-        return {
-          ...prev,
-          markets: prev.markets.filter(m => m.market_id !== marketId)
-        };
-      } else {
-        // Add market with default status 'available'
-        return {
-          ...prev,
-          markets: [...prev.markets, { market_id: marketId, status: 'available' }]
-        };
-      }
-    });
-  };
-
-  const handleMarketStatusChange = (marketId: string, status: StockStatus) => {
-    setFormData(prev => ({
-      ...prev,
-      markets: prev.markets.map(m =>
-        m.market_id === marketId ? { ...m, status } : m
-      )
-    }));
-  };
 
   const calculateMargin = () => {
     const achat = parseFloat(formData.purchase_price) || 0;
@@ -212,61 +194,7 @@ export default function ProductFormDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm">Marchés *</Label>
-            <div className="border rounded-xl p-3 min-h-[48px] max-h-[300px] overflow-y-auto bg-white">
-              {markets.length === 0 ? (
-                <p className="text-sm text-gray-500">Aucun marché disponible</p>
-              ) : (
-                <div className="space-y-3">
-                  {markets.map((market) => {
-                    const isSelected = formData.markets.some(m => m.market_id === market.id);
-                    const marketData = formData.markets.find(m => m.market_id === market.id);
-                    
-                    return (
-                      <div
-                        key={market.id}
-                        className={`p-2 rounded-lg transition-colors ${isSelected ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-gray-50'}`}
-                      >
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleMarketToggle(market.id)}
-                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 focus:ring-2"
-                          />
-                          <span className="text-sm font-medium text-gray-700 flex-1">{market.name}</span>
-                        </label>
-                        {isSelected && (
-                          <div className="mt-2 ml-6">
-                            <Label className="text-xs text-gray-600 mb-1 block">Statut pour ce marché:</Label>
-                            <Select
-                              value={marketData?.status || 'available'}
-                              onValueChange={(value) => handleMarketStatusChange(market.id, value as StockStatus)}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="available">Disponible</SelectItem>
-                                <SelectItem value="low">À racheter</SelectItem>
-                                <SelectItem value="out">Épuisé</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            {formData.markets.length > 0 && (
-              <p className="text-xs text-gray-500">
-                {formData.markets.length} marché{formData.markets.length > 1 ? 'x' : ''} sélectionné{formData.markets.length > 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
+          {/* Markets section removed - products are automatically assigned to all markets */}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
