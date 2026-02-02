@@ -37,3 +37,18 @@ export type ProductWithMarkets = Product & {
   product_markets: ProductMarket[];
 };
 
+// Order types
+export interface OrderItem {
+  id?: string;
+  product_id: string;
+  product_name?: string; // For display purposes
+  quantity: number;
+}
+
+export interface Order {
+  id: string;
+  client_name: string;
+  created_at: string;
+  items: OrderItem[];
+}
+
