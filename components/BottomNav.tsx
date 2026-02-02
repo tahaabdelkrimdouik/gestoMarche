@@ -1,6 +1,9 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Package, Truck, Settings, Layers, Store, ShoppingCart, LucideIcon } from 'lucide-react';
 
 // 1. Définition du type pour un onglet
