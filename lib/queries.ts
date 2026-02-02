@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import type { Product, ProductWithMarkets, Supplier, Market, Category } from "@/lib/types";
+import type { Product, ProductWithMarkets, Supplier, Market, Category, Order, OrderItem } from "@/lib/types";
 
 export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
   // First fetch products (avoid nesting relations in the same select to prevent schema-cache errors)
@@ -107,4 +107,81 @@ export const fetchMarkets = async (): Promise<Market[]> => {
     id: m.id,
     name: m.name ?? m.name // Handles both cases
   })) as Market[];
+};
+
+// Order functions
+export const fetchOrders = async (): Promise<Order[]> => {
+  // Fetch orders
+  const { data: orders, error: ordersErr } = await supabase
+    .from("orders")
+    .select("id, client_name, created_at")
+    .order("created_at", { ascending: false });
+
+  if (ordersErr) throw ordersErr;
+  const orderList = (orders || []) as any[];
+
+  if (orderList.length === 0) return [];
+
+  // Fetch order items with product names
+  const orderIds = orderList.map((o) => o.id);
+  const { data: items, error: itemsErr } = await supabase
+    .from("order_items")
+    .select("id, order_id, product_id, quantity, products(name)")
+    .in("order_id", orderIds as string[]);
+
+  if (itemsErr) {
+    console.warn("Could not fetch order_items:", itemsErr.message || itemsErr);
+    return orderList.map((o) => ({ ...o, items: [] })) as Order[];
+  }
+
+  // Group items by order
+  const itemsByOrder: Record<string, OrderItem[]> = {};
+  (items || []).forEach((item: any) => {
+    itemsByOrder[item.order_id] = itemsByOrder[item.order_id] || [];
+    itemsByOrder[item.order_id].push({
+      id: item.id,
+      product_id: item.product_id,
+      product_name: item.products?.name || "Produit inconnu",
+      quantity: item.quantity,
+    });
+  });
+
+  return orderList.map((o) => ({
+    ...o,
+    items: itemsByOrder[o.id] || [],
+  })) as Order[];
+};
+
+export const createOrder = async (
+  clientName: string,
+  items: { product_id: string; quantity: number }[]
+): Promise<Order> => {
+  // Create the order
+  const { data: order, error: orderErr } = await supabase
+    .from("orders")
+    .insert([{ client_name: clientName }])
+    .select()
+    .single();
+
+  if (orderErr) throw orderErr;
+
+  // Create order items
+  const orderItems = items.map((item) => ({
+    order_id: order.id,
+    product_id: item.product_id,
+    quantity: item.quantity,
+  }));
+
+  const { error: itemsErr } = await supabase
+    .from("order_items")
+    .insert(orderItems);
+
+  if (itemsErr) throw itemsErr;
+
+  return { ...order, items } as Order;
+};
+
+export const deleteOrder = async (id: string): Promise<void> => {
+  const { error } = await supabase.from("orders").delete().eq("id", id);
+  if (error) throw error;
 };
