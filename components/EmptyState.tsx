@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Package, Search, Truck, Tag, ShoppingCart } from 'lucide-react';
 
 const icons = {
