@@ -1,8 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Package, Truck, Settings, Layers, Store, LucideIcon } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Package, Truck, Settings, Layers, Store, ShoppingCart, LucideIcon } from 'lucide-react';
 
 // 1. Définition du type pour un onglet
 interface Tab {
@@ -15,6 +14,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'stock', label: 'Stock', icon: Package, href: '/stock' },
   { id: 'catalogue', label: 'Catalogue', icon: Layers, href: '/catalogue' },
+  { id: 'orders', label: 'Commandes', icon: ShoppingCart, href: '/orders' },
   { id: 'suppliers', label: 'Fournisseurs', icon: Truck, href: '/suppliers' },
   { id: 'markets', label: 'Marchés', icon: Store, href: '/markets' },
   { id: 'settings', label: 'Paramètres', icon: Settings, href: '/settings' },
