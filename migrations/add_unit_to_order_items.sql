@@ -1,0 +1,3 @@
+-- Unité pour chaque ligne de commande : pièce, bouteille, boîte, kg, g
+ALTER TABLE order_items
+ADD COLUMN IF NOT EXISTS unit TEXT;

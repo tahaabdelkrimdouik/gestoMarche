@@ -37,12 +37,15 @@ export type ProductWithMarkets = Product & {
   product_markets: ProductMarket[];
 };
 
-// Order types
+// Unités pour les lignes de commande
+export type OrderItemUnit = 'pièce' | 'bouteille' | 'boîte' | 'kg' | 'g';
+
 export interface OrderItem {
   id?: string;
   product_id: string;
-  product_name?: string; // For display purposes
-  quantity: number;
+  product_name?: string;
+  quantity: number; // nombre d'unités (ex: 2) ou poids (ex: 1.5 pour kg, 500 pour g)
+  unit?: OrderItemUnit;
 }
 
 export interface Order {

@@ -122,11 +122,11 @@ export const fetchOrders = async (): Promise<Order[]> => {
 
   if (orderList.length === 0) return [];
 
-  // Fetch order items with product names
+  // Fetch order items with product names (unit if column exists)
   const orderIds = orderList.map((o) => o.id);
   const { data: items, error: itemsErr } = await supabase
     .from("order_items")
-    .select("id, order_id, product_id, quantity, products(name)")
+    .select("id, order_id, product_id, quantity, unit, products(name)")
     .in("order_id", orderIds as string[]);
 
   if (itemsErr) {
@@ -143,6 +143,7 @@ export const fetchOrders = async (): Promise<Order[]> => {
       product_id: item.product_id,
       product_name: item.products?.name || "Produit inconnu",
       quantity: item.quantity,
+      unit: item.unit || "pièce",
     });
   });
 
@@ -154,9 +155,8 @@ export const fetchOrders = async (): Promise<Order[]> => {
 
 export const createOrder = async (
   clientName: string,
-  items: { product_id: string; quantity: number }[]
+  items: { product_id: string; quantity: number; unit?: string }[]
 ): Promise<Order> => {
-  // Create the order
   const { data: order, error: orderErr } = await supabase
     .from("orders")
     .insert([{ client_name: clientName }])
@@ -165,11 +165,11 @@ export const createOrder = async (
 
   if (orderErr) throw orderErr;
 
-  // Create order items
   const orderItems = items.map((item) => ({
     order_id: order.id,
     product_id: item.product_id,
     quantity: item.quantity,
+    ...(item.unit && { unit: item.unit }),
   }));
 
   const { error: itemsErr } = await supabase
@@ -179,6 +179,43 @@ export const createOrder = async (
   if (itemsErr) throw itemsErr;
 
   return { ...order, items } as Order;
+};
+
+export const updateOrder = async (
+  orderId: string,
+  clientName: string,
+  items: { product_id: string; quantity: number; unit?: string }[]
+): Promise<Order> => {
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update({ client_name: clientName })
+    .eq("id", orderId);
+
+  if (updateErr) throw updateErr;
+
+  const { error: deleteErr } = await supabase
+    .from("order_items")
+    .delete()
+    .eq("order_id", orderId);
+
+  if (deleteErr) throw deleteErr;
+
+  const orderItems = items.map((item) => ({
+    order_id: orderId,
+    product_id: item.product_id,
+    quantity: item.quantity,
+    ...(item.unit && { unit: item.unit }),
+  }));
+
+  const { error: insertErr } = await supabase
+    .from("order_items")
+    .insert(orderItems);
+
+  if (insertErr) throw insertErr;
+
+  const orders = await fetchOrders();
+  const updated = orders.find((o) => o.id === orderId);
+  return updated ?? ({ id: orderId, client_name: clientName, created_at: "", items } as Order);
 };
 
 export const deleteOrder = async (id: string): Promise<void> => {
