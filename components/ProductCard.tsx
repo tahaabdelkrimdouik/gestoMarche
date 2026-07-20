@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Check, AlertTriangle, XCircle, LucideIcon, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
+import ReorderQuantityDialog from '@/components/ReorderQuantityDialog';
+import { DEFAULT_REORDER_UNIT, formatReorderQuantity, type ReorderUnit } from '@/lib/reorder';
 
 // 1. Définition du type pour le statut (Union Type)
 type StockStatus = 'available' | 'low' | 'out';
@@ -18,12 +20,15 @@ interface Product {
   statusByMarket?: Record<string, string[]>; // Status breakdown: { 'available': [marketId1, ...], 'low': [marketId2, ...] }
   markets?: Array<{ id: string; name: string }>; // List of markets for display
   selectedMarket?: string; // Current selected market ('all' or market ID)
+  currentReorderQuantity?: number;
+  currentReorderUnit?: ReorderUnit;
 }
 
 // 3. Types pour les Props
 interface ProductCardProps {
   product: Product;
   onStatusChange: (id: string, newStatus: StockStatus) => void;
+  onReorderSave: (id: string, quantity: number, unit: ReorderUnit) => Promise<void>;
 }
 
 // 4. Configuration des styles par statut
@@ -39,7 +44,7 @@ const statusConfigs: Record<StockStatus, StatusConfig> = {
   out: { label: 'Épuisé', color: 'text-red-600 bg-red-50', icon: XCircle },
 };
 
-export default function ProductCard({ product, onStatusChange }: ProductCardProps) {
+export default function ProductCard({ product, onStatusChange, onReorderSave }: ProductCardProps) {
   // Use currentMarketStatus if available (per-market status), otherwise fall back to status
   const productStatus = product.currentMarketStatus || product.status || 'available';
   const config = statusConfigs[productStatus];
@@ -47,6 +52,17 @@ export default function ProductCard({ product, onStatusChange }: ProductCardProp
   const hasDifferentStatuses = product.hasDifferentStatuses || false;
   const statusByMarket = product.statusByMarket || {};
   const markets = product.markets || [];
+  const initialQuantity = Number(product.currentReorderQuantity) || 1;
+  const initialUnit = product.currentReorderUnit || DEFAULT_REORDER_UNIT;
+  const [isReorderDialogOpen, setIsReorderDialogOpen] = useState(false);
+
+  const handleStatusClick = (status: StockStatus) => {
+    if (status === 'low') {
+      setIsReorderDialogOpen(true);
+      return;
+    }
+    onStatusChange(product.id, status);
+  };
 
   // Helper to get market name by ID
   const getMarketName = (marketId: string) => {
@@ -104,18 +120,32 @@ export default function ProductCard({ product, onStatusChange }: ProductCardProp
               return (
                 <button
                   key={status}
-                  onClick={() => onStatusChange(product.id, status)}
-                  className={`py-2 px-1 rounded-xl text-[10px] font-bold transition-all border-2 ${
+                  type="button"
+                  onClick={() => handleStatusClick(status)}
+                  aria-haspopup={status === 'low' ? 'dialog' : undefined}
+                  aria-expanded={status === 'low' ? isReorderDialogOpen : undefined}
+                  className={`min-h-[44px] py-2 px-1 rounded-xl text-[10px] font-bold transition-all border-2 touch-manipulation ${
                     isActive 
                       ? 'border-gray-900 bg-gray-900 text-white' 
                       : 'border-gray-100 bg-gray-50 text-gray-400'
                   }`}
                 >
                   {s.label.toUpperCase()}
+                  {status === 'low' && isActive && ` · ${formatReorderQuantity(initialQuantity, initialUnit)}`}
                 </button>
               );
             })}
           </div>
+
+          <ReorderQuantityDialog
+            productName={product.name}
+            open={isReorderDialogOpen}
+            initialQuantity={initialQuantity}
+            initialUnit={initialUnit}
+            isAllMarkets={isAllMarkets}
+            onOpenChange={setIsReorderDialogOpen}
+            onSave={(quantity, unit) => onReorderSave(product.id, quantity, unit)}
+          />
         </div>
       </Card>
     </motion.div>

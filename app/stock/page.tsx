@@ -14,6 +14,8 @@ import EmptyState from '@/components/EmptyState';
 // TYPES & QUERIES
 import type { Market, ProductWithMarkets, StockStatus } from '@/lib/types';
 import { fetchProducts, fetchMarkets } from '@/lib/queries';
+import { notify } from '@/lib/utils/notify';
+import { formatReorderQuantity, getReorderDetails, type ReorderUnit } from '@/lib/reorder';
 
 export default function StockPage() {
   // Default to 'all' to show all markets
@@ -49,8 +51,43 @@ export default function StockPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
 
+  const updateReorderMutation = useMutation({
+    mutationFn: async ({ productId, marketIds, quantity, unit }: {
+      productId: string;
+      marketIds: string[];
+      quantity: number;
+      unit: ReorderUnit;
+    }) => {
+      const { data, error } = await supabase
+        .from('product_markets')
+        .update({
+          status: 'low',
+          reorder_quantity: quantity,
+          reorder_unit: unit,
+        })
+        .eq('product_id', productId)
+        .in('market_id', marketIds)
+        .select('market_id');
+
+      if (error) throw error;
+      if (!data || data.length !== marketIds.length) {
+        throw new Error('Certaines lignes produit-marché n’ont pas été mises à jour.');
+      }
+
+      return { quantity, unit };
+    },
+    onSuccess: async ({ quantity, unit }) => {
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      notify.success(`À racheter : ${formatReorderQuantity(quantity, unit)}`);
+    },
+    onError: (error) => {
+      console.error('Error updating reorder details:', error);
+      notify.error('Impossible d’enregistrer la quantité et l’unité');
+    },
+  });
+
   // Filter products by MARKET using the new relation array
-  const marketProducts = useMemo(() => {
+  const marketProducts = useMemo<Array<ProductWithMarkets & { currentMarketStatus: StockStatus; currentMarketId: string }>>(() => {
     // If 'all' is selected, return all products with aggregated status
     if (selectedMarket === 'all') {
       return products.map(p => {
@@ -59,8 +96,8 @@ export default function StockPage() {
         let aggregatedStatus: StockStatus = 'available';
         
         if (p.product_markets && p.product_markets.length > 0) {
-          const hasOut = p.product_markets.some((pm: any) => pm.status === 'out');
-          const hasLow = p.product_markets.some((pm: any) => pm.status === 'low');
+          const hasOut = p.product_markets.some(pm => pm.status === 'out');
+          const hasLow = p.product_markets.some(pm => pm.status === 'low');
           
           if (hasOut) {
             aggregatedStatus = 'out';
@@ -83,11 +120,11 @@ export default function StockPage() {
     return products
       .filter(p => {
         // Check if product_markets exists and contains the selected market ID
-        return p.product_markets?.some((pm: any) => pm.market_id === selectedMarket);
+        return p.product_markets?.some(pm => pm.market_id === selectedMarket);
       })
       .map(p => {
         // Find the status for the selected market
-        const marketRelation = p.product_markets?.find((pm: any) => pm.market_id === selectedMarket);
+        const marketRelation = p.product_markets?.find(pm => pm.market_id === selectedMarket);
         return {
           ...p,
           currentMarketStatus: marketRelation?.status || 'available',
@@ -109,20 +146,20 @@ export default function StockPage() {
       // When "all" is selected, show product if it has at least one market with the filtered status
       if (stockFilter === 'low') {
         result = result.filter(p => 
-          p.product_markets?.some((pm: any) => pm.status === 'low')
+          p.product_markets?.some(pm => pm.status === 'low')
         );
       } else if (stockFilter === 'out') {
         result = result.filter(p => 
-          p.product_markets?.some((pm: any) => pm.status === 'out')
+          p.product_markets?.some(pm => pm.status === 'out')
         );
       }
       // If stockFilter === 'all', show all products
     } else {
       // When specific market is selected, filter by that market's status
       if (stockFilter === 'low') {
-        result = result.filter(p => (p as any).currentMarketStatus === 'low');
+        result = result.filter(p => p.currentMarketStatus === 'low');
       } else if (stockFilter === 'out') {
-        result = result.filter(p => (p as any).currentMarketStatus === 'out');
+        result = result.filter(p => p.currentMarketStatus === 'out');
       }
     }
 
@@ -137,7 +174,7 @@ export default function StockPage() {
       // If "all" is selected, update status for ALL markets of this product
       if (product.product_markets && product.product_markets.length > 0) {
         // Update status for all markets of this product
-        const updatePromises = product.product_markets.map((pm: any) =>
+        const updatePromises = product.product_markets.map(pm =>
           supabase
             .from('product_markets')
             .update({ status: newStatus })
@@ -161,6 +198,19 @@ export default function StockPage() {
         status: newStatus 
       });
     }
+  };
+
+  const handleReorderSave = async (productId: string, quantity: number, unit: ReorderUnit) => {
+    const product = marketProducts.find(p => p.id === productId);
+    if (!product) throw new Error('Produit introuvable.');
+
+    const marketIds = selectedMarket === 'all'
+      ? (product.product_markets || []).map(pm => pm.market_id)
+      : [selectedMarket];
+
+    if (marketIds.length === 0) throw new Error('Aucun marché associé à ce produit.');
+
+    await updateReorderMutation.mutateAsync({ productId, marketIds, quantity, unit });
   };
 
   return (
@@ -194,30 +244,37 @@ export default function StockPage() {
                 const hasDifferentStatuses = selectedMarket === 'all' && 
                   product.product_markets && 
                   product.product_markets.length > 1 &&
-                  new Set(product.product_markets.map((pm: any) => pm.status)).size > 1;
+                  new Set(product.product_markets.map(pm => pm.status)).size > 1;
                 
                 // Get status breakdown by market
                 const statusByMarket = selectedMarket === 'all' && product.product_markets
-                  ? product.product_markets.reduce((acc: any, pm: any) => {
+                  ? product.product_markets.reduce<Record<StockStatus, string[]>>((acc, pm) => {
                       const status = pm.status || 'available';
-                      if (!acc[status]) acc[status] = [];
                       acc[status].push(pm.market_id);
                       return acc;
-                    }, {})
-                  : null;
+                    }, { available: [], low: [], out: [] })
+                  : undefined;
+
+                const relevantMarketRelations = selectedMarket === 'all'
+                  ? (product.product_markets || [])
+                  : (product.product_markets || []).filter(pm => pm.market_id === selectedMarket);
+                const currentReorder = getReorderDetails(relevantMarketRelations);
 
                 return (
                   <ProductCard 
                     key={product.id} 
                     product={{
                       ...product,
-                      currentMarketStatus: (product as any).currentMarketStatus || 'available',
+                      currentMarketStatus: product.currentMarketStatus || 'available',
                       hasDifferentStatuses,
                       statusByMarket,
                       markets,
                       selectedMarket,
+                      currentReorderQuantity: currentReorder.quantity,
+                      currentReorderUnit: currentReorder.unit,
                     }} 
-                    onStatusChange={handleStatusChange} 
+                    onStatusChange={handleStatusChange}
+                    onReorderSave={handleReorderSave}
                   />
                 );
               })
