@@ -1,5 +1,13 @@
 import jsPDF from 'jspdf';
 import type { Supplier, ProductWithMarkets } from '@/lib/types';
+import { formatReorderQuantity, getReorderDetails } from '@/lib/reorder';
+
+interface PurchaseOrderPdfData {
+  documentType: string;
+  supplier: string;
+  orderNumber: string;
+  pdfBlob: Blob;
+}
 
 export const generatePurchaseOrderPDF = async (supplier: Supplier, products: ProductWithMarkets[]) => {
   const pdf = new jsPDF();
@@ -58,9 +66,10 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
   pdf.setFontSize(10);
   pdf.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   pdf.text('Produit', 20, 140);
-  pdf.text('Code', 120, 140);
-  pdf.text('État', 150, 140);
-  pdf.text('Prix HT', 180, 140);
+  pdf.text('Code', 90, 140);
+  pdf.text('Qté', 120, 140);
+  pdf.text('État', 155, 140);
+  pdf.text('Prix HT', 182, 140);
 
   // Draw header line
   pdf.setDrawColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
@@ -70,7 +79,7 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
   pdf.setFontSize(9);
   pdf.setTextColor(0, 0, 0);
 
-  products.forEach((product, index) => {
+  products.forEach((product) => {
     // Check if we need a new page
     if (yPosition > 250) {
       pdf.addPage();
@@ -78,15 +87,17 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
     }
 
     // Product name
-    const nameLines = pdf.splitTextToSize(product.name, 90);
+    const nameLines = pdf.splitTextToSize(product.name, 60);
     pdf.text(nameLines, 20, yPosition);
 
     // Product code
-    pdf.text(product.code || 'N/A', 120, yPosition);
+    pdf.text(product.code || 'N/A', 90, yPosition);
+
+    const reorderDetails = getReorderDetails(product.product_markets || []);
+    pdf.text(formatReorderQuantity(reorderDetails.quantity, reorderDetails.unit), 120, yPosition);
 
     // Get the most critical status for this product across all markets
-    const hasOut = product.product_markets?.some((pm: any) => pm.status === 'out');
-    const hasLow = product.product_markets?.some((pm: any) => pm.status === 'low');
+    const hasOut = product.product_markets?.some(pm => pm.status === 'out');
     const mostCriticalStatus = hasOut ? 'out' : 'low';
     const statusText = mostCriticalStatus === 'out' ? 'Épuisé' : 'Presque fini';
 
@@ -96,12 +107,12 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
     } else {
       pdf.setTextColor(255, 165, 0);
     }
-    pdf.text(statusText, 150, yPosition);
+    pdf.text(statusText, 155, yPosition);
     pdf.setTextColor(0, 0, 0);
 
     // Price
     const price = product.purchase_price ? `${product.purchase_price.toFixed(2)} €` : 'N/A';
-    pdf.text(price, 180, yPosition);
+    pdf.text(price, 182, yPosition);
 
     yPosition += 8;
   });
@@ -112,7 +123,10 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
   pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   pdf.text('RÉCAPITULATIF', 20, yPosition);
 
-  const totalHT = products.reduce((sum, p) => sum + (p.purchase_price || 0), 0);
+  const totalHT = products.reduce((sum, product) => {
+    const reorderDetails = getReorderDetails(product.product_markets || []);
+    return sum + ((product.purchase_price || 0) * reorderDetails.quantity);
+  }, 0);
   const tva = totalHT * 0.20; // TVA 20%
   const totalTTC = totalHT + tva;
 
@@ -145,14 +159,16 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
     orderNumber,
     products: products.map(p => {
       // Get the most critical status for this product across all markets
-      const hasOut = p.product_markets?.some((pm: any) => pm.status === 'out');
-      const hasLow = p.product_markets?.some((pm: any) => pm.status === 'low');
+      const hasOut = p.product_markets?.some(pm => pm.status === 'out');
       const mostCriticalStatus = hasOut ? 'out' : 'low';
+      const reorderDetails = getReorderDetails(p.product_markets || []);
 
       return {
         name: p.name,
         code: p.code,
         status: mostCriticalStatus,
+        reorder_quantity: reorderDetails.quantity,
+        reorder_unit: reorderDetails.unit,
         purchase_price: p.purchase_price,
       };
     }),
@@ -166,7 +182,7 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
   };
 };
 
-export const downloadPDF = (pdfData: any) => {
+export const downloadPDF = (pdfData: PurchaseOrderPdfData) => {
   const blob = pdfData.pdfBlob;
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -179,7 +195,7 @@ export const downloadPDF = (pdfData: any) => {
   return true;
 };
 
-export const sharePDF = async (pdfData: any) => {
+export const sharePDF = async (pdfData: PurchaseOrderPdfData) => {
   if (navigator.share && navigator.canShare && typeof navigator.canShare === 'function') {
     try {
       const file = new File([pdfData.pdfBlob], `${pdfData.documentType}-${pdfData.supplier}-${pdfData.orderNumber}.pdf`, {

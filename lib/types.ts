@@ -20,6 +20,8 @@ export interface Category {
 export interface ProductMarket {
   market_id: string;
   status: StockStatus; // Status is now per product-market combination
+  reorder_quantity?: number;
+  reorder_unit?: string;
 }
 
 export type Product = {

@@ -1,5 +1,20 @@
 import { supabase } from "@/lib/supabaseClient";
-import type { Product, ProductWithMarkets, Supplier, Market, Category, Order, OrderItem } from "@/lib/types";
+import type { Product, ProductWithMarkets, ProductMarket, Supplier, Market, Category, Order, OrderItem, OrderItemUnit, StockStatus } from "@/lib/types";
+
+interface ProductMarketRow extends ProductMarket {
+  product_id: string;
+}
+
+type OrderRow = Pick<Order, 'id' | 'client_name' | 'created_at'>;
+
+interface OrderItemRow {
+  id: string;
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  unit: OrderItemUnit | null;
+  products: { name: string } | { name: string }[] | null;
+}
 
 export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
   // First fetch products (avoid nesting relations in the same select to prevent schema-cache errors)
@@ -11,7 +26,7 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
     .order('name', { ascending: true });
 
   if (prodErr) throw prodErr;
-  const items = (products || []) as any[];
+  const items = (products || []) as Product[];
 
   if (items.length === 0) return [];
 
@@ -19,21 +34,41 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
   const ids = items.map((p) => p.id);
   const { data: relations, error: relErr } = await supabase
     .from('product_markets')
-    .select('product_id, market_id, status')
+    .select('product_id, market_id, status, reorder_quantity, reorder_unit')
     .in('product_id', ids as string[]);
 
-  if (relErr) {
-    // If the relation table doesn't exist or fails, return products without relations
+  let relationRows: ProductMarketRow[];
+  if (relErr?.code === '42703' && relErr.message.includes('reorder_unit')) {
+    // Keep reads working if the app deploys just before the unit migration.
+    const { data: legacyRelations, error: legacyError } = await supabase
+      .from('product_markets')
+      .select('product_id, market_id, status, reorder_quantity')
+      .in('product_id', ids as string[]);
+
+    if (legacyError) {
+      console.warn('Could not fetch product_markets relations:', legacyError.message || legacyError);
+      return items.map((p) => ({ ...p, product_markets: [] })) as ProductWithMarkets[];
+    }
+
+    relationRows = ((legacyRelations || []) as ProductMarketRow[]).map(relation => ({
+      ...relation,
+      reorder_unit: 'piece',
+    }));
+  } else if (relErr) {
     console.warn('Could not fetch product_markets relations:', relErr.message || relErr);
     return items.map((p) => ({ ...p, product_markets: [] })) as ProductWithMarkets[];
+  } else {
+    relationRows = (relations || []) as ProductMarketRow[];
   }
 
-  const relsByProduct: Record<string, { market_id: string; status: string }[]> = {};
-  (relations || []).forEach((r: any) => {
+  const relsByProduct: Record<string, ProductMarket[]> = {};
+  relationRows.forEach((r) => {
     relsByProduct[r.product_id] = relsByProduct[r.product_id] || [];
     relsByProduct[r.product_id].push({ 
       market_id: r.market_id,
-      status: r.status || 'available' // Default to 'available' if status is null
+      status: (r.status || 'available') as StockStatus, // Default to 'available' if status is null
+      reorder_quantity: r.reorder_quantity || 1,
+      reorder_unit: r.reorder_unit || 'piece',
     });
   });
 
@@ -118,7 +153,7 @@ export const fetchOrders = async (): Promise<Order[]> => {
     .order("created_at", { ascending: false });
 
   if (ordersErr) throw ordersErr;
-  const orderList = (orders || []) as any[];
+  const orderList = (orders || []) as OrderRow[];
 
   if (orderList.length === 0) return [];
 
@@ -136,12 +171,14 @@ export const fetchOrders = async (): Promise<Order[]> => {
 
   // Group items by order
   const itemsByOrder: Record<string, OrderItem[]> = {};
-  (items || []).forEach((item: any) => {
+  const orderItemRows = (items || []) as OrderItemRow[];
+  orderItemRows.forEach((item) => {
+    const relatedProduct = Array.isArray(item.products) ? item.products[0] : item.products;
     itemsByOrder[item.order_id] = itemsByOrder[item.order_id] || [];
     itemsByOrder[item.order_id].push({
       id: item.id,
       product_id: item.product_id,
-      product_name: item.products?.name || "Produit inconnu",
+      product_name: relatedProduct?.name || "Produit inconnu",
       quantity: item.quantity,
       unit: item.unit || "pièce",
     });

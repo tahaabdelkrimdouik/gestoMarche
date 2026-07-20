@@ -8,6 +8,7 @@ import { notify } from '@/lib/utils/notify';
 import { ProductWithMarkets, Supplier } from '@/lib/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
+import { formatReorderQuantity, getReorderDetails } from '@/lib/reorder';
 
 const statusConfig = {
   low: {
@@ -32,6 +33,11 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose, on
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
+
+  const formatProductReorder = (product: ProductWithMarkets) => {
+    const details = getReorderDetails(product.product_markets || []);
+    return formatReorderQuantity(details.quantity, details.unit);
+  };
 
   // CRITICAL FILTER: Only show products with "low" status (à racheter)
   // - "low" means product doesn't exist in stock globally and needs supplier purchase
@@ -108,7 +114,7 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose, on
 
   const handleShareEmail = () => {
     const productList = filteredProducts.map(p => {
-      return `• ${p.name}${p.code ? ` (${p.code})` : ''}`;
+      return `• ${p.name}${p.code ? ` (${p.code})` : ''} — Quantité : ${formatProductReorder(p)}`;
     }).join('\n');
 
     const subject = encodeURIComponent(`Liste de réapprovisionnement - ${supplier?.name}`);
@@ -292,10 +298,13 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose, on
                             )}
                           </div>
                         </div>
-                        <Badge variant="outline" className={`${config.color} border flex-shrink-0 ml-2`}>
-                          {Icon && <Icon className="w-3 h-3 mr-1" />}
-                          {config.label}
-                        </Badge>
+                        <div className="ml-2 flex flex-shrink-0 flex-col items-end gap-1">
+                          <span className="text-sm font-bold text-gray-900">{formatProductReorder(product)}</span>
+                          <Badge variant="outline" className={`${config.color} border`}>
+                            {Icon && <Icon className="w-3 h-3 mr-1" />}
+                            {config.label}
+                          </Badge>
+                        </div>
                       </div>
                     );
                   })}
