@@ -16,6 +16,7 @@ import type { Market, ProductWithMarkets, StockStatus } from '@/lib/types';
 import { fetchProducts, fetchMarkets } from '@/lib/queries';
 import { notify } from '@/lib/utils/notify';
 import { formatReorderQuantity, getReorderDetails, type ReorderUnit } from '@/lib/reorder';
+import { matchesProductSearch } from '@/lib/search';
 
 export default function StockPage() {
   // Default to 'all' to show all markets
@@ -35,6 +36,11 @@ export default function StockPage() {
     queryKey: ['products'],
     queryFn: fetchProducts,
   });
+
+  const productNames = useMemo(
+    () => products.map((product) => product.name),
+    [products]
+  );
 
   // MUTATION FOR STATUS UPDATE (per product-market combination)
   const updateStatusMutation = useMutation({
@@ -138,8 +144,7 @@ export default function StockPage() {
     let result = marketProducts;
 
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(p => p.name.toLowerCase().includes(q));
+      result = result.filter(p => matchesProductSearch(searchQuery, p.name));
     }
 
     if (selectedMarket === 'all') {
@@ -222,6 +227,7 @@ export default function StockPage() {
         onMarketChange={setSelectedMarket}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        productNames={productNames}
       />
 
       {/* MAIN CONTENT */}

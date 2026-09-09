@@ -9,6 +9,7 @@ import { ProductWithMarkets, Supplier } from '@/lib/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { formatReorderQuantity, getReorderDetails } from '@/lib/reorder';
+import { matchesProductSearch } from '@/lib/search';
 
 const statusConfig = {
   low: {
@@ -61,11 +62,7 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose, on
   // Filter products by search query
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return criticalProducts;
-    const q = searchQuery.toLowerCase();
-    return criticalProducts.filter(p => 
-      p.name.toLowerCase().includes(q) ||
-      (p.code || '').toLowerCase().includes(q)
-    );
+    return criticalProducts.filter((p) => matchesProductSearch(searchQuery, p.name, p.code));
   }, [criticalProducts, searchQuery]);
 
   // Mutation to mark product as purchased (change "low" to "available" for ALL markets)

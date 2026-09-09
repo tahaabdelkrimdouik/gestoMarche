@@ -51,6 +51,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import type { Market, Product, ProductWithMarkets, Supplier, Category, StockStatus } from '@/lib/types';
+import { matchesProductSearch } from '@/lib/search';
 
 // 1. Interface des Props
 interface CatalogueScreenProps {
@@ -125,11 +126,7 @@ export default function CatalogueScreen({
 
     // Filter by search query (name or code)
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.code || '').toLowerCase().includes(q)
-      );
+      filtered = filtered.filter(p => matchesProductSearch(searchQuery, p.name, p.code));
     }
 
     // Sort by product name (ascending) - alphabetical order

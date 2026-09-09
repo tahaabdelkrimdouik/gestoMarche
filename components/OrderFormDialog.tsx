@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ShoppingCart, User, Plus, Trash2, Package, Search } from 'lucide-react';
 import type { ProductWithMarkets, Order, OrderItemUnit } from '@/lib/types';
+import { matchesProductSearch } from '@/lib/search';
 
 const UNIT_OPTIONS: { value: OrderItemUnit; label: string }[] = [
   { value: 'pièce', label: 'Pièce' },
@@ -205,12 +206,9 @@ export default function OrderFormDialog({
 
   const getFilteredProducts = (itemId: string) => {
     const list = getAvailableProducts(itemId);
-    const q = (productSearch[itemId] || '').trim().toLowerCase();
+    const q = (productSearch[itemId] || '').trim();
     if (!q) return list;
-    return list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) || (p.code || '').toLowerCase().includes(q)
-    );
+    return list.filter((p) => matchesProductSearch(q, p.name, p.code));
   };
 
   return (
