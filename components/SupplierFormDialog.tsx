@@ -68,7 +68,7 @@ export default function SupplierFormDialog({
             </div>
             {supplier ? 'Modifier le fournisseur' : 'Nouveau fournisseur'}
           </DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription className="sr-only">
             {supplier ? 'Modifiez les informations du fournisseur' : 'Ajoutez un nouveau fournisseur'}
           </DialogDescription>
         </DialogHeader>
@@ -118,18 +118,18 @@ export default function SupplierFormDialog({
               />
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+          <div className="flex flex-row gap-3 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1 min-h-[48px] rounded-xl touch-manipulation order-2 sm:order-1"
+              className="flex-1 min-h-[48px] rounded-xl touch-manipulation"
             >
               Annuler
             </Button>
             <Button
               type="submit"
-              className="flex-1 min-h-[48px] rounded-xl bg-violet-600 hover:bg-violet-700 touch-manipulation order-1 sm:order-2"
+              className="flex-1 min-h-[48px] rounded-xl bg-violet-600 hover:bg-violet-700 touch-manipulation"
             >
               {supplier ? 'Enregistrer' : 'Ajouter'}
             </Button>

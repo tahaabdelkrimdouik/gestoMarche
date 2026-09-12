@@ -121,7 +121,7 @@ export default function ProductFormDialog({
             </div>
             {product ? 'Modifier le produit' : 'Nouveau produit'}
           </DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription className="sr-only">
             {product ? 'Modifiez les informations du produit' : 'Ajoutez un nouveau produit à votre catalogue'}
           </DialogDescription>
         </DialogHeader>
@@ -254,18 +254,18 @@ export default function ProductFormDialog({
           )}
           </div>
 
-          <div className="flex shrink-0 flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:pt-4">
+          <div className="flex shrink-0 flex-row gap-3 border-t border-gray-100 pt-3">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1 min-h-[48px] rounded-xl touch-manipulation order-2 sm:order-1"
+              className="flex-1 min-h-[48px] rounded-xl touch-manipulation"
             >
               Annuler
             </Button>
             <Button
               type="submit"
-              className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 touch-manipulation order-1 sm:order-2"
+              className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 touch-manipulation"
             >
               {product ? 'Enregistrer' : 'Ajouter'}
             </Button>

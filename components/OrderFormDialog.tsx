@@ -221,7 +221,7 @@ export default function OrderFormDialog({
             </div>
             {isEditMode ? 'Modifier la commande' : 'Nouvelle commande'}
           </DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
+          <DialogDescription className="sr-only">
             {isEditMode
               ? 'Modifiez le client et les produits de la commande'
               : 'Indiquez le client et les produits à commander'}

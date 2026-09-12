@@ -56,7 +56,7 @@ export default function CategoryFormDialog({
             </div>
             {category ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
           </DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription className="sr-only">
             {category ? 'Modifiez le nom de la catégorie' : 'Ajoutez une nouvelle catégorie à votre catalogue'}
           </DialogDescription>
         </DialogHeader>
@@ -74,18 +74,18 @@ export default function CategoryFormDialog({
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+          <div className="flex flex-row gap-3 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1 min-h-[48px] rounded-xl touch-manipulation order-2 sm:order-1"
+              className="flex-1 min-h-[48px] rounded-xl touch-manipulation"
             >
               Annuler
             </Button>
             <Button
               type="submit"
-              className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 touch-manipulation order-1 sm:order-2"
+              className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 touch-manipulation"
             >
               {category ? 'Enregistrer' : 'Ajouter'}
             </Button>
