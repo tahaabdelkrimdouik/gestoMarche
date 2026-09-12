@@ -39,8 +39,12 @@ export default function SettingsScreen({ onNavigate }: SettingsScreenProps) {
     <div className="px-4 py-4 sm:py-6 pb-28 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="text-center py-4">
-        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto shadow-xl shadow-emerald-200 mb-3 sm:mb-4">
-          <Package className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-[#f8f5e2] flex items-center justify-center mx-auto shadow-xl shadow-emerald-200 mb-3 sm:mb-4 overflow-hidden">
+          <img
+            src="/les-oliviers-grecs-logo.png"
+            alt="Les Oliviers Grecs"
+            className="h-full w-full object-contain p-1"
+          />
         </div>
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">GestoStock</h1>
         <p className="text-sm sm:text-base text-gray-500 mt-1">Gérez vos paramètres</p>

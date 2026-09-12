@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, MapPin, Mic } from 'lucide-react';
+import { Search, Mic } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import VoiceSearchDialog from '@/components/VoiceSearchDialog';
 import { useVoiceSearch } from '@/hooks/useVoiceSearch';
@@ -48,8 +48,12 @@ export default function Header({
       <div className="px-4 py-4 space-y-3">
         {/* Market Selector */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-200">
-            <MapPin className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-[#f8f5e2] flex items-center justify-center shadow-lg shadow-emerald-200 overflow-hidden shrink-0">
+            <img
+              src="/les-oliviers-grecs-icon.png"
+              alt="Les Oliviers Grecs"
+              className="h-full w-full object-contain"
+            />
           </div>
           <Select value={selectedMarket} onValueChange={onMarketChange}>
             <SelectTrigger className="flex-1 min-h-[48px] border-0 bg-gray-50 rounded-xl text-base font-medium hover:bg-gray-100 transition-colors touch-manipulation">
