@@ -113,8 +113,8 @@ export default function ProductFormDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[80%] h-[100dvh] max-h-[90vh] overflow-y-auto rounded-3xl">
-        <DialogHeader>
+      <DialogContent className="flex h-[calc(var(--vvh,100dvh)-1rem)] max-h-[calc(var(--vvh,100dvh)-1rem)] max-w-[calc(100%-1.25rem)] overflow-hidden rounded-3xl p-4 sm:h-auto sm:max-h-[min(90vh,calc(var(--vvh,90vh)-2rem))] sm:max-w-lg sm:p-6">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
               <Package className="w-5 h-5 text-emerald-600" />
@@ -126,7 +126,8 @@ export default function ProductFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 mt-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-2 sm:space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm">Nom du produit *</Label>
             <Input
@@ -160,10 +161,10 @@ export default function ProductFormDialog({
                 value={formData.supplier_id}
                 onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}
               >
-                <SelectTrigger className="min-h-[48px] rounded-xl touch-manipulation">
+                <SelectTrigger className="min-h-[48px] w-full rounded-xl touch-manipulation">
                   <SelectValue placeholder="Choisir" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper">
                   {suppliers.map((supplier) => (
                     <SelectItem key={supplier.id} value={supplier.id}>
                       {supplier.name}
@@ -180,10 +181,10 @@ export default function ProductFormDialog({
                 onValueChange={(value) => setFormData({ ...formData, category_id: value })}
                 required
               >
-                <SelectTrigger className="min-h-[48px] rounded-xl touch-manipulation">
+                <SelectTrigger className="min-h-[48px] w-full rounded-xl touch-manipulation">
                   <SelectValue placeholder="Choisir une catégorie" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper">
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
@@ -206,6 +207,7 @@ export default function ProductFormDialog({
                   type="number"
                   step="0.01"
                   min="0"
+                  inputMode="decimal"
                   value={formData.purchase_price}
                   onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
                   placeholder="0.00"
@@ -223,6 +225,7 @@ export default function ProductFormDialog({
                   type="number"
                   step="0.01"
                   min="0"
+                  inputMode="decimal"
                   value={formData.sale_price}
                   onChange={(e) => setFormData({ ...formData, sale_price: e.target.value })}
                   placeholder="0.00"
@@ -249,8 +252,9 @@ export default function ProductFormDialog({
               </span>
             </div>
           )}
+          </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+          <div className="flex shrink-0 flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:pt-4">
             <Button
               type="button"
               variant="outline"

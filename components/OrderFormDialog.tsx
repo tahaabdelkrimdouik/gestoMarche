@@ -213,7 +213,7 @@ export default function OrderFormDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95%] sm:max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl p-4 sm:p-5">
+      <DialogContent className="max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-2xl p-4 sm:max-w-lg sm:p-5">
         <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">

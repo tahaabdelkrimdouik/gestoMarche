@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { useVisualViewport } from "@/hooks/useVisualViewport";
 
 export default function Providers({
   children,
@@ -9,6 +10,7 @@ export default function Providers({
   children: React.ReactNode;
 }) {
   const [queryClient] = useState(() => new QueryClient());
+  useVisualViewport();
 
   return (
     <QueryClientProvider client={queryClient}>

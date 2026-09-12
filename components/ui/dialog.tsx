@@ -50,17 +50,34 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onFocusCapture,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const handleFocusIn = (event: React.FocusEvent<HTMLDivElement>) => {
+    onFocusCapture?.(event)
+    const target = event.target
+    if (!(target instanceof HTMLElement)) return
+    if (!target.matches("input, textarea, select, [data-slot=select-trigger]")) {
+      return
+    }
+
+    window.setTimeout(() => {
+      target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" })
+    }, 300)
+  }
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        onFocusCapture={handleFocusIn}
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 outline-none sm:max-w-lg",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed left-1/2 z-50 flex w-full -translate-x-1/2 flex-col gap-4 border p-6 shadow-lg duration-200 outline-none",
+          "top-[calc(var(--vv-offset-top,0px)+0.5rem)] translate-y-0 max-h-[calc(var(--vvh,100dvh)-1rem)] max-w-[calc(100%-1.25rem)] overflow-y-auto overscroll-contain rounded-lg",
+          "sm:top-1/2 sm:max-h-[min(90vh,calc(var(--vvh,90vh)-2rem))] sm:max-w-lg sm:-translate-y-1/2",
           className
         )}
         {...props}
