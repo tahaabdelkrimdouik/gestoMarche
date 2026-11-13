@@ -1,33 +1,16 @@
-import React from 'react';
+import { memo } from 'react';
 import { Card } from '@/components/ui/card';
-import { Check, AlertTriangle, XCircle, LucideIcon, Info, LoaderCircle } from 'lucide-react';
+import { Check, AlertTriangle, XCircle, LucideIcon, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ReorderQuantityFields from '@/components/ReorderQuantityFields';
-import { DEFAULT_REORDER_UNIT, type ReorderUnit } from '@/lib/reorder';
+import { getReorderDetails, type ReorderUnit } from '@/lib/reorder';
+import type { Market, ProductWithMarkets, StockStatus } from '@/lib/types';
+import { getStockStatus } from '@/lib/stockStatus';
 
-// 1. Définition du type pour le statut (Union Type)
-type StockStatus = 'available' | 'low' | 'out';
-
-// 2. Structure d'un produit (can have status per market)
-interface Product {
-  id: string;
-  name: string;
-  status?: StockStatus; // Optional for backward compatibility
-  currentMarketStatus?: StockStatus; // Status for the current market
-  price_purchase?: number;
-  price_sale?: number;
-  hasDifferentStatuses?: boolean; // True if product has different statuses in different markets
-  statusByMarket?: Record<string, string[]>; // Status breakdown: { 'available': [marketId1, ...], 'low': [marketId2, ...] }
-  markets?: Array<{ id: string; name: string }>; // List of markets for display
-  selectedMarket?: string; // Current selected market ('all' or market ID)
-  currentReorderQuantity?: number;
-  currentReorderUnit?: ReorderUnit;
-}
-
-// 3. Types pour les Props
 interface ProductCardProps {
-  product: Product;
-  isUpdating?: boolean;
+  product: ProductWithMarkets;
+  markets: Market[];
+  selectedMarket: string;
   onStatusChange: (id: string, newStatus: StockStatus) => void;
   onReorderSave: (id: string, quantity: number, unit: ReorderUnit) => Promise<void>;
 }
@@ -45,16 +28,18 @@ const statusConfigs: Record<StockStatus, StatusConfig> = {
   out: { label: 'Épuisé', color: 'text-red-600 bg-red-50', icon: XCircle },
 };
 
-export default function ProductCard({ product, onStatusChange, onReorderSave, isUpdating = false }: ProductCardProps) {
-  // Use currentMarketStatus if available (per-market status), otherwise fall back to status
-  const productStatus = product.currentMarketStatus || product.status || 'available';
+function ProductCard({ product, markets, selectedMarket, onStatusChange, onReorderSave }: ProductCardProps) {
+  const productStatus = getStockStatus(product, selectedMarket);
   const config = statusConfigs[productStatus];
-  const isAllMarkets = product.selectedMarket === 'all';
-  const hasDifferentStatuses = product.hasDifferentStatuses || false;
-  const statusByMarket = product.statusByMarket || {};
-  const markets = product.markets || [];
-  const initialQuantity = Number(product.currentReorderQuantity) || 1;
-  const initialUnit = product.currentReorderUnit || DEFAULT_REORDER_UNIT;
+  const isAllMarkets = selectedMarket === 'all';
+  const relations = isAllMarkets ? product.product_markets
+    : product.product_markets.filter(market => market.market_id === selectedMarket);
+  const hasDifferentStatuses = isAllMarkets && new Set(relations.map(market => market.status)).size > 1;
+  const statusByMarket = relations.reduce<Record<StockStatus, string[]>>((result, market) => {
+    result[market.status].push(market.market_id);
+    return result;
+  }, { available: [], low: [], out: [] });
+  const { quantity: initialQuantity, unit: initialUnit } = getReorderDetails(relations);
 
   // Helper to get market name by ID
   const getMarketName = (marketId: string) => {
@@ -85,7 +70,7 @@ export default function ProductCard({ product, onStatusChange, onReorderSave, is
                   <div className="space-y-1">
                     {Object.entries(statusByMarket).map(([status, marketIds]) => {
                       const statusConfig = statusConfigs[status as StockStatus];
-                      if (!statusConfig || !Array.isArray(marketIds)) return null;
+                      if (!statusConfig || !marketIds.length) return null;
                       
                       return (
                         <div key={status} className="flex items-center gap-2 text-xs">
@@ -104,7 +89,7 @@ export default function ProductCard({ product, onStatusChange, onReorderSave, is
             </div>
           )}
 
-          <div role="group" aria-label={`Statut de ${product.name}`} aria-busy={isUpdating} className="grid grid-cols-3 gap-2">
+          <div role="group" aria-label={`Statut de ${product.name}`} className="grid grid-cols-3 gap-2">
             {(Object.keys(statusConfigs) as StockStatus[]).map((status) => {
               const s = statusConfigs[status];
               const isActive = productStatus === status;
@@ -115,8 +100,7 @@ export default function ProductCard({ product, onStatusChange, onReorderSave, is
                   type="button"
                   onClick={() => onStatusChange(product.id, status)}
                   aria-pressed={isActive}
-                  disabled={isUpdating}
-                  className={`min-h-[44px] py-2 px-1 rounded-xl text-xs font-medium leading-snug transition-colors border touch-manipulation disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
+                  className={`min-h-[44px] py-2 px-1 rounded-xl text-xs font-medium leading-snug transition-colors border touch-manipulation focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
                     isActive 
                       ? 'border-gray-900 bg-gray-900 text-white' 
                       : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -128,10 +112,9 @@ export default function ProductCard({ product, onStatusChange, onReorderSave, is
             })}
           </div>
 
-          {isUpdating && <span role="status" className="flex items-center gap-2 text-xs text-gray-500"><LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 motion-safe:animate-spin" />Mise à jour du stock…</span>}
           {productStatus !== 'available' && (
             <ReorderQuantityFields
-              key={`${product.id}-${product.selectedMarket}-${initialQuantity}-${initialUnit}`}
+              key={`${product.id}-${selectedMarket}-${initialQuantity}-${initialUnit}`}
               productId={product.id}
               initialQuantity={initialQuantity}
               initialUnit={initialUnit}
@@ -144,3 +127,5 @@ export default function ProductCard({ product, onStatusChange, onReorderSave, is
     </motion.div>
   );
 }
+
+export default memo(ProductCard);

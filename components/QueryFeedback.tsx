@@ -31,7 +31,7 @@ export function ListSkeleton({ label = 'Chargement en cours…' }: { label?: str
   );
 }
 
-export default function QueryFeedback({ queries, label, children }: { queries: QueryState[]; label: string; children: ReactNode }) {
+export default function QueryFeedback({ queries, label, children, showBackgroundActivity = true }: { queries: QueryState[]; label: string; children: ReactNode; showBackgroundActivity?: boolean }) {
   const missingData = queries.some(query => query.data === undefined);
   const failed = queries.some(query => query.isError);
   const fetching = queries.some(query => query.isFetching);
@@ -48,7 +48,7 @@ export default function QueryFeedback({ queries, label, children }: { queries: Q
       )}
       {missingData ? (!failed && <ListSkeleton label={label} />) : (
         <>
-          {fetching && <div className="py-2"><LoadingIndicator>Actualisation en cours…</LoadingIndicator></div>}
+          {fetching && showBackgroundActivity && <div className="py-2"><LoadingIndicator>Actualisation en cours…</LoadingIndicator></div>}
           {children}
         </>
       )}
