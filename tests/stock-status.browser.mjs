@@ -77,7 +77,11 @@ async function scenario(browser, width) {
     });
   });
   const card = () => page.locator('[data-slot="card"]').filter({ has: page.getByRole('heading', { name: 'Abricots moelleux', exact: true }) });
-  const selected = async name => until(async () => (await card().getByRole('button', { name, exact: true }).getAttribute('aria-pressed')) === 'true', `${name} was not selected optimistically`);
+  const selected = async name => {
+    await until(async () => (await card().getByRole('button', { name, exact: true }).getAttribute('aria-pressed')) === 'true', `${name} was not selected optimistically`);
+    if (name === 'À racheter') await card().getByLabel('Quantité à racheter').waitFor();
+    else assert.equal(await card().getByLabel('Quantité à racheter').count(), 0, 'Quantity fields are only shown for À racheter');
+  };
   const waitJob = index => until(() => jobs.length > index, `Request ${index} was not sent`);
   const quiet = async () => {
     assert.equal(await page.getByText(/^(Actualisation en cours|Mise à jour du stock|Opération en cours)/).count(), 0);
@@ -131,7 +135,7 @@ async function scenario(browser, width) {
     await waitJob(2);
     assert.equal(jobs[2].body.status, 'out');
     await selected('Épuisé');
-    assert.equal(await card().getByLabel('Quantité à racheter').inputValue(), '7,5');
+    assert.equal(state.product_markets[0].reorder_quantity, 7.5, 'Hiding fields must preserve the saved quantity');
 
     // Filters and counts react before the pending out request is acknowledged.
     await page.getByRole('button', { name: 'En rupture', exact: true }).click();

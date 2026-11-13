@@ -112,7 +112,7 @@ function ProductCard({ product, markets, selectedMarket, onStatusChange, onReord
             })}
           </div>
 
-          {productStatus !== 'available' && (
+          {productStatus === 'low' && (
             <ReorderQuantityFields
               key={`${product.id}-${selectedMarket}-${initialQuantity}-${initialUnit}`}
               productId={product.id}
