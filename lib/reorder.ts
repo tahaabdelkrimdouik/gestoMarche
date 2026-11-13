@@ -69,7 +69,9 @@ export function getReorderDetails(productMarkets: ProductMarket[]): {
   quantity: number;
   unit: ReorderUnit;
 } {
-  const relation = productMarkets.find(item => item.status === 'low') || productMarkets[0];
+  const relation = productMarkets.find(item => item.status === 'low')
+    || productMarkets.find(item => item.status === 'out')
+    || productMarkets[0];
   return {
     quantity: Number(relation?.reorder_quantity) || 1,
     unit: isReorderUnit(relation?.reorder_unit) ? relation.reorder_unit : DEFAULT_REORDER_UNIT,

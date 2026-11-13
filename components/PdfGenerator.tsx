@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import type { Supplier, ProductWithMarkets } from '@/lib/types';
 import { formatReorderQuantity, getReorderDetails } from '@/lib/reorder';
+import { replenishmentStatus } from '@/lib/suppliers';
 
 interface PurchaseOrderPdfData {
   documentType: string;
@@ -97,9 +98,8 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
     pdf.text(formatReorderQuantity(reorderDetails.quantity, reorderDetails.unit), 120, yPosition);
 
     // Get the most critical status for this product across all markets
-    const hasOut = product.product_markets?.some(pm => pm.status === 'out');
-    const mostCriticalStatus = hasOut ? 'out' : 'low';
-    const statusText = mostCriticalStatus === 'out' ? 'Épuisé' : 'Presque fini';
+    const mostCriticalStatus = replenishmentStatus(product);
+    const statusText = mostCriticalStatus === 'out' ? 'Épuisé' : 'À racheter';
 
     // Status with color
     if (mostCriticalStatus === 'out') {
@@ -159,8 +159,7 @@ export const generatePurchaseOrderPDF = async (supplier: Supplier, products: Pro
     orderNumber,
     products: products.map(p => {
       // Get the most critical status for this product across all markets
-      const hasOut = p.product_markets?.some(pm => pm.status === 'out');
-      const mostCriticalStatus = hasOut ? 'out' : 'low';
+      const mostCriticalStatus = replenishmentStatus(p);
       const reorderDetails = getReorderDetails(p.product_markets || []);
 
       return {

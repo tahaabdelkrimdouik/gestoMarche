@@ -27,19 +27,19 @@ import {
   Trash2,
   Search,
   Filter,
-  Upload,
   ChevronDown,
   ChevronUp,
   CheckSquare,
   Square,
 } from 'lucide-react';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { LoadingIndicator } from './QueryFeedback';
 import EmptyState from './EmptyState';
 // Assurez-vous que ces composants existent ou commentez-les si nécessaire
 import FloatingActionButton from './FloatingActionButton';
 import ProductFormDialog from './ProductFormDialog';
 import SupplierFormDialog from './SupplierFormDialog';
 import CategoryFormDialog from './CategoryFormDialog';
-import CsvImportDialog from './CsvImportDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,7 +50,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { Market, Product, ProductWithMarkets, Supplier, Category, StockStatus } from '@/lib/types';
+import type { Market, ProductDetailsInput, ProductWithMarkets, Supplier, Category, StockStatus } from '@/lib/types';
 import { matchesProductSearch } from '@/lib/search';
 
 // 1. Interface des Props
@@ -59,16 +59,15 @@ interface CatalogueScreenProps {
   suppliers: Supplier[];
   markets: Market[];
   categories: Category[];
-  onCreateProduct: (data: any) => void; // On utilise any temporairement pour les forms, ou Omit<Product, 'id'>
-  onUpdateProduct: (id: string, data: Partial<Product>) => void;
-  onDeleteProduct: (id: string) => void;
-  onCreateSupplier: (data: any) => void;
-  onUpdateSupplier: (id: string, data: Partial<Supplier>) => void;
-  onDeleteSupplier: (id: string) => void;
-  onCreateCategory: (data: any) => void;
-  onUpdateCategory: (id: string, data: Partial<Category>) => void;
-  onDeleteCategory: (id: string) => void;
-  onImportProducts: (products: any[]) => Promise<void>;
+  onCreateProduct: (data: ProductDetailsInput) => Promise<void>;
+  onUpdateProduct: (id: string, data: ProductDetailsInput) => Promise<void>;
+  onDeleteProduct: (id: string) => Promise<void>;
+  onCreateSupplier: (data: Omit<Supplier, 'id'>) => Promise<void>;
+  onUpdateSupplier: (id: string, data: Partial<Supplier>) => Promise<void>;
+  onDeleteSupplier: (id: string) => Promise<void>;
+  onCreateCategory: (data: Omit<Category, 'id'>) => Promise<void>;
+  onUpdateCategory: (id: string, data: Partial<Category>) => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<void>;
 }
 
 export default function CatalogueScreen({
@@ -84,8 +83,7 @@ export default function CatalogueScreen({
   onDeleteSupplier,
   onCreateCategory,
   onUpdateCategory,
-  onDeleteCategory,
-  onImportProducts
+  onDeleteCategory
 }: CatalogueScreenProps) {
 
   const [activeTab, setActiveTab] = useState('products');
@@ -98,7 +96,6 @@ export default function CatalogueScreen({
   
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
-  const [isCsvImportDialogOpen, setIsCsvImportDialogOpen] = useState(false);
 
   // Correction: Typage de l'état de suppression
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -117,7 +114,7 @@ export default function CatalogueScreen({
 
   // Filter products by search and category
   const filteredProducts = useMemo(() => {
-    let filtered = products;
+    let filtered = [...products];
 
     // Filter by category
     if (selectedCategory !== 'all') {
@@ -140,6 +137,8 @@ export default function CatalogueScreen({
   }, [products, searchQuery, selectedCategory]);
 
   // Filter suppliers by search
+  const filteredCategories = categories.filter(category => category.name.toLocaleLowerCase('fr').includes(searchQuery.toLocaleLowerCase('fr')));
+
   const filteredSuppliers = useMemo(() => {
     if (!searchQuery) return suppliers;
     const q = searchQuery.toLowerCase();
@@ -191,32 +190,31 @@ export default function CatalogueScreen({
   };
 
   const handleDeleteClick = (type: 'product' | 'supplier' | 'category', id: string) => {
+    deletion.resetError();
     setDeleteConfirm({ isOpen: true, type, id });
   };
 
-  const handleConfirmDelete = () => {
-    if (deleteConfirm.type === 'product' && deleteConfirm.id) {
-      // Handle bulk delete (comma-separated IDs) or single delete
-      if (deleteConfirm.id.includes(',')) {
-        const ids = deleteConfirm.id.split(',');
-        ids.forEach(id => onDeleteProduct(id));
-        setSelectedProductIds(new Set()); // Clear selection after bulk delete
-      } else {
-        onDeleteProduct(deleteConfirm.id);
+  const deletion = useAsyncAction('Suppression impossible. Certains éléments peuvent encore être associés à des produits. Réessayez.');
+  const handleConfirmDelete = () => deletion.run(async () => {
+    if (!deleteConfirm.id) return;
+    if (deleteConfirm.type === 'product') {
+      for (const id of deleteConfirm.id.split(',')) {
+        await onDeleteProduct(id);
+        setSelectedProductIds(previous => { const next = new Set(previous); next.delete(id); return next; });
       }
-    } else if (deleteConfirm.type === 'supplier' && deleteConfirm.id) {
-      onDeleteSupplier(deleteConfirm.id);
-    } else if (deleteConfirm.type === 'category' && deleteConfirm.id) {
-      onDeleteCategory(deleteConfirm.id);
+    } else if (deleteConfirm.type === 'supplier') {
+      await onDeleteSupplier(deleteConfirm.id);
+    } else if (deleteConfirm.type === 'category') {
+      await onDeleteCategory(deleteConfirm.id);
     }
     setDeleteConfirm({ isOpen: false, type: null, id: null });
-  };
+  });
 
-  const handleProductSubmit = (data: any) => {
+  const handleProductSubmit = async (data: ProductDetailsInput) => {
     if (editingProduct) {
-      onUpdateProduct(editingProduct.id, data);
+      await onUpdateProduct(editingProduct.id, data);
     } else {
-      onCreateProduct(data);
+      await onCreateProduct(data);
     }
     setIsProductDialogOpen(false);
     setEditingProduct(null);
@@ -245,6 +243,7 @@ export default function CatalogueScreen({
 
   const handleBulkDelete = () => {
     if (selectedProductIds.size === 0) return;
+    deletion.resetError();
     setDeleteConfirm({ 
       isOpen: true, 
       type: 'product', 
@@ -264,28 +263,28 @@ export default function CatalogueScreen({
     });
   };
 
-  const handleSupplierSubmit = (data: any) => {
+  const handleSupplierSubmit = async (data: Omit<Supplier, 'id'>) => {
     if (editingSupplier) {
-      onUpdateSupplier(editingSupplier.id, data);
+      await onUpdateSupplier(editingSupplier.id, data);
     } else {
-      onCreateSupplier(data);
+      await onCreateSupplier(data);
     }
     setIsSupplierDialogOpen(false);
     setEditingSupplier(null);
   };
 
-  const handleCategorySubmit = (data: any) => {
+  const handleCategorySubmit = async (data: Omit<Category, 'id'>) => {
     if (editingCategory) {
-      onUpdateCategory(editingCategory.id, data);
+      await onUpdateCategory(editingCategory.id, data);
     } else {
-      onCreateCategory(data);
+      await onCreateCategory(data);
     }
     setIsCategoryDialogOpen(false);
     setEditingCategory(null);
   };
 
   return (
-    <div className="px-4 py-4 sm:py-6 pb-28">
+    <div className="py-4 sm:py-6 pb-28">
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex items-center justify-between">
@@ -293,16 +292,7 @@ export default function CatalogueScreen({
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Catalogue</h1>
             <p className="text-sm sm:text-base text-gray-500">Gérez vos produits et fournisseurs</p>
           </div>
-          {activeTab === 'products' && (
-            <Button
-              onClick={() => setIsCsvImportDialogOpen(true)}
-              variant="outline"
-              className="flex items-center gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-            >
-              <Upload className="w-4 h-4" />
-              Importer CSV
-            </Button>
-          )}
+
         </div>
       </div>
 
@@ -311,7 +301,8 @@ export default function CatalogueScreen({
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <Input
           type="text"
-          placeholder={activeTab === 'products' ? 'Rechercher par nom ou code produit...' : 'Rechercher un fournisseur...'}
+          aria-label="Rechercher dans le catalogue"
+          placeholder={activeTab === 'products' ? 'Rechercher par nom ou code produit...' : activeTab === 'categories' ? 'Rechercher une catégorie...' : 'Rechercher un fournisseur...'}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full min-h-[48px] pl-12 pr-4 border-0 bg-white rounded-xl text-base shadow-sm touch-manipulation"
@@ -500,7 +491,8 @@ export default function CatalogueScreen({
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleEditProduct(product)}
+                            aria-label={`Modifier ${product.name}`}
+                                onClick={() => handleEditProduct(product)}
                             className="min-h-[40px] min-w-[40px] hover:bg-gray-100"
                           >
                             <Pencil className="w-4 h-4 text-gray-600" />
@@ -508,7 +500,8 @@ export default function CatalogueScreen({
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteClick('product', product.id)}
+                            aria-label={`Supprimer ${product.name}`}
+                                onClick={() => handleDeleteClick('product', product.id)}
                             className="min-h-[40px] min-w-[40px] hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4 text-red-600" />
@@ -661,7 +654,8 @@ export default function CatalogueScreen({
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleEditProduct(product)}
+                                    aria-label={`Modifier ${product.name}`}
+                                onClick={() => handleEditProduct(product)}
                                     className="min-h-[44px] min-w-[44px] hover:bg-gray-100 touch-manipulation"
                                   >
                                     <Pencil className="w-5 h-5 text-gray-600" />
@@ -669,7 +663,8 @@ export default function CatalogueScreen({
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleDeleteClick('product', product.id)}
+                                    aria-label={`Supprimer ${product.name}`}
+                                onClick={() => handleDeleteClick('product', product.id)}
                                     className="min-h-[44px] min-w-[44px] hover:bg-red-50 touch-manipulation"
                                   >
                                     <Trash2 className="w-5 h-5 text-red-600" />
@@ -720,14 +715,15 @@ export default function CatalogueScreen({
                         </TableCell>
                         <TableCell className="text-gray-600 text-sm hidden md:table-cell">
                           {/* Note: Si l'email n'est pas dans types.ts, on met un tiret ou on cast */}
-                          {(supplier as any).email || '-'}
+                          {supplier.email || '-'}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-2">
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleEditSupplier(supplier)}
+                              aria-label={`Modifier ${supplier.name}`}
+                                onClick={() => handleEditSupplier(supplier)}
                               className="min-h-[44px] min-w-[44px] hover:bg-gray-100 touch-manipulation"
                             >
                               <Pencil className="w-5 h-5 text-gray-600" />
@@ -735,7 +731,8 @@ export default function CatalogueScreen({
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDeleteClick('supplier', supplier.id)}
+                              aria-label={`Supprimer ${supplier.name}`}
+                                onClick={() => handleDeleteClick('supplier', supplier.id)}
                               className="min-h-[44px] min-w-[44px] hover:bg-red-50 touch-manipulation"
                             >
                               <Trash2 className="w-5 h-5 text-red-600" />
@@ -753,7 +750,7 @@ export default function CatalogueScreen({
 
         {/* Categories Tab */}
         <TabsContent value="categories" className="mt-4">
-          {categories.length === 0 ? (
+          {filteredCategories.length === 0 ? (
             <EmptyState
               type="categories"
               title="Aucune catégorie"
@@ -771,7 +768,7 @@ export default function CatalogueScreen({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {categories.map((category) => {
+                    {filteredCategories.map((category) => {
                       const productCount = products.filter(p => p.category_id === category.id).length;
 
                       return (
@@ -790,6 +787,7 @@ export default function CatalogueScreen({
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label={`Modifier ${category.name}`}
                                 onClick={() => handleEditCategory(category)}
                                 className="min-h-[44px] min-w-[44px] hover:bg-gray-100 touch-manipulation"
                               >
@@ -798,6 +796,7 @@ export default function CatalogueScreen({
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label={`Supprimer ${category.name}`}
                                 onClick={() => handleDeleteClick('category', category.id)}
                                 className="min-h-[44px] min-w-[44px] hover:bg-red-50 touch-manipulation"
                                 disabled={productCount > 0}
@@ -831,7 +830,6 @@ export default function CatalogueScreen({
           }}
           onSubmit={handleProductSubmit}
           product={editingProduct}
-          markets={markets}
           suppliers={suppliers}
           categories={categories}
         />
@@ -851,7 +849,7 @@ export default function CatalogueScreen({
       )}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirm.isOpen} onOpenChange={(open) => !open && setDeleteConfirm({ isOpen: false, type: null, id: null })}>
+      <AlertDialog open={deleteConfirm.isOpen} onOpenChange={(open) => !open && !deletion.isPending && setDeleteConfirm({ isOpen: false, type: null, id: null })}>
         <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
@@ -868,27 +866,19 @@ export default function CatalogueScreen({
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deletion.error && <p role="alert" className="text-sm text-red-600">{deletion.error}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletion.isPending} className="rounded-xl">Annuler</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmDelete}
+              disabled={deletion.isPending}
+              onClick={event => { event.preventDefault(); void handleConfirmDelete(); }}
               className="rounded-xl bg-red-600 hover:bg-red-700"
             >
-              Supprimer
+              {deletion.isPending ? <LoadingIndicator>Suppression…</LoadingIndicator> : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* CSV Import Dialog */}
-      <CsvImportDialog
-        isOpen={isCsvImportDialogOpen}
-        onClose={() => setIsCsvImportDialogOpen(false)}
-        onImport={onImportProducts}
-        markets={markets}
-        suppliers={suppliers}
-        categories={categories}
-      />
 
       {/* Category Dialog */}
       {isCategoryDialogOpen && (

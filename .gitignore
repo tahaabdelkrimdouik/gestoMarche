@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supabase CLI connection metadata and local browser smoke helper
+/supabase/.temp/
+/scripts/.ui-smoke.cjs

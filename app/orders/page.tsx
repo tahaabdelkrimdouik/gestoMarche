@@ -5,6 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ShoppingCart, Trash2, Calendar, User, Package, Pencil } from 'lucide-react';
 
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { LoadingIndicator } from '@/components/QueryFeedback';
+import QueryFeedback from '@/components/QueryFeedback';
 import BottomNav from '@/components/BottomNav';
 import EmptyState from '@/components/EmptyState';
 import OrderFormDialog, { OrderFormSubmitData } from '@/components/OrderFormDialog';
@@ -20,7 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-import type { Order, ProductWithMarkets, OrderItemUnit } from '@/lib/types';
+import type { Order, ProductWithMarkets } from '@/lib/types';
 import { fetchOrders, createOrder, updateOrder, deleteOrder, fetchProducts } from '@/lib/queries';
 import { notify } from '@/lib/utils/notify';
 
@@ -38,15 +41,17 @@ export default function OrdersPage() {
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
 
-  const { data: orders = [], isLoading } = useQuery<Order[]>({
+  const ordersQuery = useQuery<Order[]>({
     queryKey: ['orders'],
     queryFn: fetchOrders,
   });
+  const { data: orders = [] } = ordersQuery;
 
-  const { data: products = [] } = useQuery<ProductWithMarkets[]>({
+  const productsQuery = useQuery<ProductWithMarkets[]>({
     queryKey: ['products'],
     queryFn: fetchProducts,
   });
+  const { data: products = [] } = productsQuery;
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: OrderFormSubmitData) => {
@@ -90,11 +95,11 @@ export default function OrdersPage() {
     },
   });
 
-  const handleSubmit = (data: OrderFormSubmitData, orderId?: string) => {
+  const handleSubmit = async (data: OrderFormSubmitData, orderId?: string) => {
     if (orderId) {
-      updateOrderMutation.mutate({ orderId, data });
+      await updateOrderMutation.mutateAsync({ orderId, data });
     } else {
-      createOrderMutation.mutate(data);
+      await createOrderMutation.mutateAsync(data);
     }
   };
 
@@ -108,9 +113,10 @@ export default function OrdersPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDeleteOrder = () => {
-    if (orderToDelete) deleteOrderMutation.mutate(orderToDelete.id);
-  };
+  const deletion = useAsyncAction('Suppression impossible. Vérifiez votre connexion et réessayez.');
+  const handleDeleteOrder = () => deletion.run(async () => {
+    if (orderToDelete) await deleteOrderMutation.mutateAsync(orderToDelete.id);
+  });
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -134,11 +140,12 @@ export default function OrdersPage() {
               <div>
                 <h1 className="text-lg font-bold text-gray-900">Commandes</h1>
                 <p className="text-xs text-gray-500">
-                  {orders.length} commande{orders.length !== 1 ? 's' : ''}
+                  {ordersQuery.data === undefined ? 'Chargement…' : `${orders.length} commande${orders.length !== 1 ? 's' : ''}`}
                 </p>
               </div>
             </div>
             <Button
+              disabled={productsQuery.data === undefined}
               onClick={openCreate}
               className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm"
             >
@@ -150,11 +157,8 @@ export default function OrdersPage() {
       </header>
 
       <main className="pb-20 sm:pb-24">
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-7 h-7 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : orders.length === 0 ? (
+        <div className="px-3"><QueryFeedback queries={[ordersQuery, productsQuery]} label="Chargement des commandes…">
+        {orders.length === 0 ? (
           <EmptyState
             type="orders"
             title="Aucune commande"
@@ -201,7 +205,7 @@ export default function OrdersPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setOrderToDelete(order)}
+                        onClick={() => { deletion.resetError(); setOrderToDelete(order); }}
                         className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
                         aria-label="Supprimer la commande"
                       >
@@ -238,9 +242,10 @@ export default function OrdersPage() {
             </AnimatePresence>
           </div>
         )}
+        </QueryFeedback></div>
       </main>
 
-      <OrderFormDialog
+      {isDialogOpen && <OrderFormDialog
         isOpen={isDialogOpen}
         onClose={() => {
           setIsDialogOpen(false);
@@ -249,9 +254,9 @@ export default function OrdersPage() {
         onSubmit={handleSubmit}
         products={products}
         order={orderToEdit}
-      />
+      />}
 
-      <AlertDialog open={!!orderToDelete} onOpenChange={() => setOrderToDelete(null)}>
+      <AlertDialog open={!!orderToDelete} onOpenChange={() => !deletion.isPending && setOrderToDelete(null)}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer la commande</AlertDialogTitle>
@@ -261,13 +266,15 @@ export default function OrdersPage() {
               Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deletion.error && <p role="alert" className="text-sm text-red-600">{deletion.error}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletion.isPending} className="rounded-xl">Annuler</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteOrder}
+              disabled={deletion.isPending}
+              onClick={event => { event.preventDefault(); void handleDeleteOrder(); }}
               className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
             >
-              Supprimer
+              {deletion.isPending ? <LoadingIndicator>Suppression…</LoadingIndicator> : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

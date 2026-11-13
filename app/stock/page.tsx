@@ -1,11 +1,12 @@
 'use client'
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabaseClient';
 
 // COMPONENTS
 import Header from '@/components/Header';
+import QueryFeedback from '@/components/QueryFeedback';
 import BottomNav from '@/components/BottomNav';
 import StockFilters from '@/components/StockFilters';
 import ProductCard from '@/components/ProductCard';
@@ -24,37 +25,43 @@ export default function StockPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
 
+  const stockLocks = useRef(new Set<string>());
+  const [pendingProductIds, setPendingProductIds] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
   // FETCH DATA
-  const { data: markets = [] } = useQuery<Market[]>({
+  const marketsQuery = useQuery<Market[]>({
     queryKey: ['markets'],
     queryFn: fetchMarkets,
   });
+  const { data: markets = [] } = marketsQuery;
 
-  const { data: products = [] } = useQuery<ProductWithMarkets[]>({
+  const productsQuery = useQuery<ProductWithMarkets[]>({
     queryKey: ['products'],
     queryFn: fetchProducts,
   });
+  const { data: products = [] } = productsQuery;
 
   const productNames = useMemo(
     () => products.map((product) => product.name),
     [products]
   );
 
-  // MUTATION FOR STATUS UPDATE (per product-market combination)
+  // Status changes never overwrite saved reorder quantities or units.
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ productId, marketId, status }: { productId: string; marketId: string; status: StockStatus }) => {
-      // Update status in product_markets junction table
-      const { error } = await supabase
+    mutationFn: async ({ productId, marketIds, status }: { productId: string; marketIds: string[]; status: StockStatus }) => {
+      const { data, error } = await supabase
         .from('product_markets')
         .update({ status })
         .eq('product_id', productId)
-        .eq('market_id', marketId);
+        .in('market_id', marketIds)
+        .select('market_id');
       
       if (error) throw error;
+      if (!data || data.length !== marketIds.length) throw new Error('Mise à jour du stock incomplète.');
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+    onError: () => notify.error('Impossible de modifier le statut du produit'),
   });
 
   const updateReorderMutation = useMutation({
@@ -67,7 +74,6 @@ export default function StockPage() {
       const { data, error } = await supabase
         .from('product_markets')
         .update({
-          status: 'low',
           reorder_quantity: quantity,
           reorder_unit: unit,
         })
@@ -171,37 +177,27 @@ export default function StockPage() {
     return result;
   }, [marketProducts, searchQuery, stockFilter, selectedMarket]);
 
-  const handleStatusChange = (productId: string, newStatus: StockStatus) => {
+  const handleStatusChange = async (productId: string, newStatus: StockStatus) => {
+    if (stockLocks.current.has(productId)) return;
     const product = marketProducts.find(p => p.id === productId);
     if (!product) return;
 
-    if (selectedMarket === 'all') {
-      // If "all" is selected, update status for ALL markets of this product
-      if (product.product_markets && product.product_markets.length > 0) {
-        // Update status for all markets of this product
-        const updatePromises = product.product_markets.map(pm =>
-          supabase
-            .from('product_markets')
-            .update({ status: newStatus })
-            .eq('product_id', productId)
-            .eq('market_id', pm.market_id)
-        );
-        
-        Promise.all(updatePromises)
-          .then(() => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
-          })
-          .catch((error) => {
-            console.error('Error updating status for all markets:', error);
-          });
-      }
-    } else {
-      // Update status for the specific market
-      updateStatusMutation.mutate({ 
-        productId, 
-        marketId: selectedMarket, 
-        status: newStatus 
-      });
+    const marketIds = selectedMarket === 'all'
+      ? product.product_markets.map(market => market.market_id)
+      : [selectedMarket];
+    if (!marketIds.length) {
+      notify.error('Aucun marché associé à ce produit');
+      return;
+    }
+    stockLocks.current.add(productId);
+    setPendingProductIds(new Set(stockLocks.current));
+    try {
+      await updateStatusMutation.mutateAsync({ productId, marketIds, status: newStatus });
+    } catch {
+      // The mutation displays a friendly error and leaves the previous status intact.
+    } finally {
+      stockLocks.current.delete(productId);
+      setPendingProductIds(new Set(stockLocks.current));
     }
   };
 
@@ -233,16 +229,19 @@ export default function StockPage() {
       {/* MAIN CONTENT */}
       <main className="pb-24 sm:pb-28">
         {/* Fixed Stock Filters */}
-        <div className="sticky top-[140px] z-40 bg-white border-b border-gray-200 shadow-sm">
+        <div className="sticky top-[141px] z-40 bg-white border-b border-gray-200 shadow-sm">
           <StockFilters activeFilter={stockFilter} onFilterChange={setStockFilter} />
         </div>
-        <div className="px-4 space-y-3 sm:space-y-4">
+        <div className="mx-auto max-w-5xl px-4 pt-5 sm:pt-6">
+          <QueryFeedback queries={[marketsQuery, productsQuery]} label="Chargement du stock…">
+          <p className="mb-3 text-sm text-gray-500">{filteredProducts.length} produit{filteredProducts.length !== 1 ? 's' : ''}</p>
+          <div className="space-y-3 sm:space-y-4">
           <AnimatePresence mode="popLayout">
             {filteredProducts.length === 0 ? (
               <EmptyState
                 type={searchQuery ? 'search' : 'products'}
-                title={searchQuery ? 'Aucun résultat' : 'Aucun produit'}
-                description={searchQuery ? `Aucun résultat pour "${searchQuery}"` : 'Ajoutez des produits pour commencer'}
+                title={searchQuery || stockFilter !== 'all' || selectedMarket !== 'all' ? 'Aucun résultat' : 'Aucun produit'}
+                description={searchQuery || stockFilter !== 'all' || selectedMarket !== 'all' ? 'Aucun produit ne correspond aux filtres sélectionnés.' : 'Ajoutez des produits dans le catalogue pour commencer.'}
               />
             ) : (
               filteredProducts.map((product) => {
@@ -279,6 +278,7 @@ export default function StockPage() {
                       currentReorderQuantity: currentReorder.quantity,
                       currentReorderUnit: currentReorder.unit,
                     }} 
+                    isUpdating={pendingProductIds.has(product.id)}
                     onStatusChange={handleStatusChange}
                     onReorderSave={handleReorderSave}
                   />
@@ -286,6 +286,8 @@ export default function StockPage() {
               })
             )}
           </AnimatePresence>
+          </div>
+          </QueryFeedback>
         </div>
       </main>
 

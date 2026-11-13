@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
-import type { Product, ProductWithMarkets, ProductMarket, Supplier, Market, Category, Order, OrderItem, OrderItemUnit, StockStatus } from "@/lib/types";
+import type { Product, ProductDetailsInput, ProductWithMarkets, ProductMarket, Supplier, Market, Category, Order, OrderItem, OrderItemUnit, StockStatus } from "@/lib/types";
+import { validateProduct } from './productValidation';
+import { normalizeAlternativeSupplierIds } from './suppliers';
 
 interface ProductMarketRow extends ProductMarket {
   product_id: string;
@@ -30,6 +32,25 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
 
   if (items.length === 0) return [];
 
+  const { data: alternatives, error: alternativesError } = await supabase
+    .from('product_alternative_suppliers')
+    .select('product_id, supplier_id')
+    .in('product_id', items.map(product => product.id));
+
+  // Permit the previous catalogue to load during a migration-first rollout.
+  // Other failures must not look like an empty list that could overwrite saved links.
+  if (alternativesError && !['42P01', 'PGRST205'].includes(alternativesError.code)) {
+    throw alternativesError;
+  }
+  const alternativesByProduct: Record<string, string[]> = {};
+  for (const relation of alternatives || []) {
+    (alternativesByProduct[relation.product_id] ||= []).push(relation.supplier_id);
+  }
+  const withAlternatives = items.map(product => ({
+    ...product,
+    alternative_supplier_ids: normalizeAlternativeSupplierIds(alternativesByProduct[product.id] || [], product.supplier_id),
+  }));
+
   // Then fetch product_markets relations for these products (including status per market)
   const ids = items.map((p) => p.id);
   const { data: relations, error: relErr } = await supabase
@@ -46,8 +67,7 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
       .in('product_id', ids as string[]);
 
     if (legacyError) {
-      console.warn('Could not fetch product_markets relations:', legacyError.message || legacyError);
-      return items.map((p) => ({ ...p, product_markets: [] })) as ProductWithMarkets[];
+      throw legacyError;
     }
 
     relationRows = ((legacyRelations || []) as ProductMarketRow[]).map(relation => ({
@@ -55,8 +75,7 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
       reorder_unit: 'piece',
     }));
   } else if (relErr) {
-    console.warn('Could not fetch product_markets relations:', relErr.message || relErr);
-    return items.map((p) => ({ ...p, product_markets: [] })) as ProductWithMarkets[];
+    throw relErr;
   } else {
     relationRows = (relations || []) as ProductMarketRow[];
   }
@@ -72,10 +91,30 @@ export const fetchProducts = async (): Promise<ProductWithMarkets[]> => {
     });
   });
 
-  return items.map((p) => ({
+  return withAlternatives.map((p) => ({
     ...p,
     product_markets: relsByProduct[p.id] || [],
   })) as ProductWithMarkets[];
+};
+
+export const saveProductDetails = async (product: ProductDetailsInput, id: string | null = null): Promise<void> => {
+  if (Object.keys(validateProduct(product)).length) {
+    throw new Error('Le nom, le code produit et la catégorie sont obligatoires.');
+  }
+  const { alternative_supplier_ids, ...details } = { ...product, name: product.name.trim(), code: product.code.trim() };
+  const { error } = await supabase.rpc('save_product_details', {
+    p_product_id: id,
+    p_details: details,
+    p_alternative_supplier_ids: alternative_supplier_ids === undefined
+      ? null
+      : normalizeAlternativeSupplierIds(alternative_supplier_ids, product.supplier_id),
+  });
+  if (error) {
+    if (error.code === 'PGRST202') {
+      throw new Error('La mise à jour de la base de données est nécessaire avant d’enregistrer les produits.');
+    }
+    throw error;
+  }
 };
 
 export const fetchCategories = async (): Promise<Category[]> => {
@@ -165,8 +204,7 @@ export const fetchOrders = async (): Promise<Order[]> => {
     .in("order_id", orderIds as string[]);
 
   if (itemsErr) {
-    console.warn("Could not fetch order_items:", itemsErr.message || itemsErr);
-    return orderList.map((o) => ({ ...o, items: [] })) as Order[];
+    throw itemsErr;
   }
 
   // Group items by order

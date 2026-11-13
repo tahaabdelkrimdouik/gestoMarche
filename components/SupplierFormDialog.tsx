@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,6 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { LoadingIndicator } from './QueryFeedback';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +17,7 @@ import type { Supplier } from '@/lib/types';
 interface SupplierFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: Omit<Supplier, 'id'>) => Promise<void>;
   supplier?: Supplier | null;
 }
 
@@ -25,42 +27,22 @@ export default function SupplierFormDialog({
   onSubmit, 
   supplier = null
 }: SupplierFormDialogProps) {
+  const saving = useAsyncAction();
   const [formData, setFormData] = useState({
-    name: '',
-    phone_number: '',
-    email: ''
+    name: supplier?.name || '',
+    phone_number: supplier?.phone_number || '',
+    email: supplier?.email || ''
   });
-
-  useEffect(() => {
-    // Avoid calling setState synchronously in the effect body (can trigger cascading renders).
-    // Schedule the update in a microtask so React won't warn about synchronous setState here.
-    if (supplier) {
-      Promise.resolve().then(() => {
-        setFormData({
-          name: supplier.name ?? '',
-          phone_number: supplier.phone_number ?? '',
-          email: supplier.email ?? ''
-        });
-      });
-    } else {
-      Promise.resolve().then(() => {
-        setFormData({
-          name: '',
-          phone_number: '',
-          email: ''
-        });
-      });
-    }
-  }, [supplier]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (!formData.name.trim()) return;
+    void saving.run(() => onSubmit({ ...formData, name: formData.name.trim() }));
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-3xl sm:max-w-lg">
+    <Dialog open={isOpen} onOpenChange={() => !saving.isPending && onClose()}>
+      <DialogContent showCloseButton={!saving.isPending} className="max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-3xl sm:max-w-lg">
       <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
@@ -73,7 +55,8 @@ export default function SupplierFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 mt-4">
+        <form aria-busy={saving.isPending} onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 mt-4">
+          <fieldset disabled={saving.isPending} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm">Nom du fournisseur *</Label>
             <Input
@@ -118,10 +101,13 @@ export default function SupplierFormDialog({
               />
             </div>
           </div>
+          </fieldset>
+          {saving.error && <p role="alert" className="text-sm text-red-600">{saving.error}</p>}
           <div className="flex flex-row gap-3 pt-4">
             <Button
               type="button"
               variant="outline"
+              disabled={saving.isPending}
               onClick={onClose}
               className="flex-1 min-h-[48px] rounded-xl touch-manipulation"
             >
@@ -129,9 +115,10 @@ export default function SupplierFormDialog({
             </Button>
             <Button
               type="submit"
+              disabled={saving.isPending}
               className="flex-1 min-h-[48px] rounded-xl bg-violet-600 hover:bg-violet-700 touch-manipulation"
             >
-              {supplier ? 'Enregistrer' : 'Ajouter'}
+              {saving.isPending ? <LoadingIndicator>Enregistrement…</LoadingIndicator> : supplier ? 'Enregistrer' : 'Ajouter'}
             </Button>
           </div>
         </form>

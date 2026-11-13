@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { LoadingIndicator } from './QueryFeedback';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,7 +40,7 @@ export interface OrderFormSubmitData {
 interface OrderFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: OrderFormSubmitData, orderId?: string) => void;
+  onSubmit: (data: OrderFormSubmitData, orderId?: string) => Promise<void>;
   products: ProductWithMarkets[];
   order?: Order | null; // pour modification
 }
@@ -50,8 +52,12 @@ export default function OrderFormDialog({
   products = [],
   order = null,
 }: OrderFormDialogProps) {
-  const [clientName, setClientName] = useState('');
-  const [items, setItems] = useState<OrderFormItem[]>([]);
+  const saving = useAsyncAction();
+  const [clientName, setClientName] = useState(order?.client_name || '');
+  const [items, setItems] = useState<OrderFormItem[]>(() => order?.items.length ? order.items.map(item => ({
+    id: item.id || crypto.randomUUID(), product_id: item.product_id,
+    quantityStr: String(item.quantity ?? 1), unit: item.unit || 'pièce',
+  })) : [{ id: crypto.randomUUID(), product_id: '', quantityStr: '1', unit: 'pièce' }]);
   const [errors, setErrors] = useState<{ clientName?: string; items?: string[] }>({});
   const [productSearch, setProductSearch] = useState<Record<string, string>>({});
   const [openProductDropdown, setOpenProductDropdown] = useState<string | null>(null);
@@ -71,30 +77,6 @@ export default function OrderFormDialog({
     document.addEventListener('pointerdown', handlePointerDown, { capture: true });
     return () => document.removeEventListener('pointerdown', handlePointerDown, { capture: true });
   }, [openProductDropdown]);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (order?.id) {
-        setClientName(order.client_name || '');
-        setItems(
-          order.items.length > 0
-            ? order.items.map((it) => ({
-                id: it.id || crypto.randomUUID(),
-                product_id: it.product_id,
-                quantityStr: it.quantity != null ? String(it.quantity) : '1',
-                unit: (it.unit as OrderItemUnit) || 'pièce',
-              }))
-            : [{ id: crypto.randomUUID(), product_id: '', quantityStr: '1', unit: 'pièce' as OrderItemUnit }]
-        );
-      } else {
-        setClientName('');
-        setItems([{ id: crypto.randomUUID(), product_id: '', quantityStr: '1', unit: 'pièce' }]);
-      }
-      setProductSearch({});
-      setOpenProductDropdown(null);
-      setErrors({});
-    }
-  }, [isOpen, order]);
 
   const validateForm = (): boolean => {
     const newErrors: { clientName?: string; items?: string[] } = {};
@@ -153,10 +135,10 @@ export default function OrderFormDialog({
       return;
     }
 
-    onSubmit(
+    void saving.run(() => onSubmit(
       { client_name: clientName.trim(), items: validItems },
       isEditMode ? order!.id : undefined
-    );
+    ));
   };
 
   const addItem = () => {
@@ -212,8 +194,8 @@ export default function OrderFormDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-2xl p-4 sm:max-w-lg sm:p-5">
+    <Dialog open={isOpen} onOpenChange={() => !saving.isPending && onClose()}>
+      <DialogContent showCloseButton={!saving.isPending} className="max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-2xl p-4 sm:max-w-lg sm:p-5">
         <DialogHeader className="pb-2">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
@@ -228,7 +210,8 @@ export default function OrderFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-3 mt-2">
+        <form aria-busy={saving.isPending} onSubmit={handleSubmit} className="space-y-3 mt-2">
+          <fieldset disabled={saving.isPending} className="min-w-0 space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="client_name" className="text-xs font-medium">
               Nom du client *
@@ -410,10 +393,13 @@ export default function OrderFormDialog({
             </Button>
           </div>
 
+          </fieldset>
+          {saving.error && <p role="alert" className="text-sm text-red-600">{saving.error}</p>}
           <div className="flex gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
+              disabled={saving.isPending}
               onClick={onClose}
               className="flex-1 min-h-[40px] rounded-xl text-sm"
             >
@@ -421,9 +407,10 @@ export default function OrderFormDialog({
             </Button>
             <Button
               type="submit"
+              disabled={saving.isPending}
               className="flex-1 min-h-[40px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm"
             >
-              {isEditMode ? 'Enregistrer' : 'Créer la commande'}
+              {saving.isPending ? <LoadingIndicator>Enregistrement…</LoadingIndicator> : isEditMode ? 'Enregistrer' : 'Créer la commande'}
             </Button>
           </div>
         </form>

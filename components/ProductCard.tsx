@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card } from '@/components/ui/card';
-import { Check, AlertTriangle, XCircle, LucideIcon, Info } from 'lucide-react';
+import { Check, AlertTriangle, XCircle, LucideIcon, Info, LoaderCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import ReorderQuantityDialog from '@/components/ReorderQuantityDialog';
-import { DEFAULT_REORDER_UNIT, formatReorderQuantity, type ReorderUnit } from '@/lib/reorder';
+import ReorderQuantityFields from '@/components/ReorderQuantityFields';
+import { DEFAULT_REORDER_UNIT, type ReorderUnit } from '@/lib/reorder';
 
 // 1. Définition du type pour le statut (Union Type)
 type StockStatus = 'available' | 'low' | 'out';
@@ -27,6 +27,7 @@ interface Product {
 // 3. Types pour les Props
 interface ProductCardProps {
   product: Product;
+  isUpdating?: boolean;
   onStatusChange: (id: string, newStatus: StockStatus) => void;
   onReorderSave: (id: string, quantity: number, unit: ReorderUnit) => Promise<void>;
 }
@@ -44,7 +45,7 @@ const statusConfigs: Record<StockStatus, StatusConfig> = {
   out: { label: 'Épuisé', color: 'text-red-600 bg-red-50', icon: XCircle },
 };
 
-export default function ProductCard({ product, onStatusChange, onReorderSave }: ProductCardProps) {
+export default function ProductCard({ product, onStatusChange, onReorderSave, isUpdating = false }: ProductCardProps) {
   // Use currentMarketStatus if available (per-market status), otherwise fall back to status
   const productStatus = product.currentMarketStatus || product.status || 'available';
   const config = statusConfigs[productStatus];
@@ -54,15 +55,6 @@ export default function ProductCard({ product, onStatusChange, onReorderSave }: 
   const markets = product.markets || [];
   const initialQuantity = Number(product.currentReorderQuantity) || 1;
   const initialUnit = product.currentReorderUnit || DEFAULT_REORDER_UNIT;
-  const [isReorderDialogOpen, setIsReorderDialogOpen] = useState(false);
-
-  const handleStatusClick = (status: StockStatus) => {
-    if (status === 'low') {
-      setIsReorderDialogOpen(true);
-      return;
-    }
-    onStatusChange(product.id, status);
-  };
 
   // Helper to get market name by ID
   const getMarketName = (marketId: string) => {
@@ -71,11 +63,11 @@ export default function ProductCard({ product, onStatusChange, onReorderSave }: 
 
   return (
     <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <Card className="p-4 border-0 shadow-sm rounded-2xl bg-white">
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-start">
-            <h3 className="font-semibold text-gray-900">{product.name}</h3>
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+      <Card className="gap-0 p-3.5 sm:p-4 border border-gray-100 shadow-sm rounded-2xl bg-white">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex justify-between items-start gap-3">
+            <h3 className="min-w-0 break-words text-sm sm:text-base font-semibold leading-snug text-gray-900">{product.name}</h3>
+            <div className={`flex shrink-0 items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
               <config.icon className="w-3 h-3" />
               {config.label}
             </div>
@@ -112,7 +104,7 @@ export default function ProductCard({ product, onStatusChange, onReorderSave }: 
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          <div role="group" aria-label={`Statut de ${product.name}`} aria-busy={isUpdating} className="grid grid-cols-3 gap-2">
             {(Object.keys(statusConfigs) as StockStatus[]).map((status) => {
               const s = statusConfigs[status];
               const isActive = productStatus === status;
@@ -121,31 +113,32 @@ export default function ProductCard({ product, onStatusChange, onReorderSave }: 
                 <button
                   key={status}
                   type="button"
-                  onClick={() => handleStatusClick(status)}
-                  aria-haspopup={status === 'low' ? 'dialog' : undefined}
-                  aria-expanded={status === 'low' ? isReorderDialogOpen : undefined}
-                  className={`min-h-[44px] py-2 px-1 rounded-xl text-[10px] font-bold transition-all border-2 touch-manipulation ${
+                  onClick={() => onStatusChange(product.id, status)}
+                  aria-pressed={isActive}
+                  disabled={isUpdating}
+                  className={`min-h-[44px] py-2 px-1 rounded-xl text-xs font-medium leading-snug transition-colors border touch-manipulation disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
                     isActive 
                       ? 'border-gray-900 bg-gray-900 text-white' 
-                      : 'border-gray-100 bg-gray-50 text-gray-400'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  {s.label.toUpperCase()}
-                  {status === 'low' && isActive && ` · ${formatReorderQuantity(initialQuantity, initialUnit)}`}
+                  {s.label}
                 </button>
               );
             })}
           </div>
 
-          <ReorderQuantityDialog
-            productName={product.name}
-            open={isReorderDialogOpen}
-            initialQuantity={initialQuantity}
-            initialUnit={initialUnit}
-            isAllMarkets={isAllMarkets}
-            onOpenChange={setIsReorderDialogOpen}
-            onSave={(quantity, unit) => onReorderSave(product.id, quantity, unit)}
-          />
+          {isUpdating && <span role="status" className="flex items-center gap-2 text-xs text-gray-500"><LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 motion-safe:animate-spin" />Mise à jour du stock…</span>}
+          {productStatus !== 'available' && (
+            <ReorderQuantityFields
+              key={`${product.id}-${product.selectedMarket}-${initialQuantity}-${initialUnit}`}
+              productId={product.id}
+              initialQuantity={initialQuantity}
+              initialUnit={initialUnit}
+              isAllMarkets={isAllMarkets}
+              onSave={(quantity, unit) => onReorderSave(product.id, quantity, unit)}
+            />
+          )}
         </div>
       </Card>
     </motion.div>

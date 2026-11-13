@@ -6,6 +6,10 @@ import { Search, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 // COMPONENTS
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { LoadingIndicator } from '@/components/QueryFeedback';
+import EmptyState from '@/components/EmptyState';
+import QueryFeedback from '@/components/QueryFeedback';
 import BottomNav from '@/components/BottomNav';
 import SupplierCard from '@/components/SupplierCard';
 import SupplierDrawer from '@/components/SupplierDrawer';
@@ -34,6 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { notify } from '@/lib/utils/notify';
+import { needsReplenishment } from '@/lib/suppliers';
 
 // TYPES & QUERIES
 import type { ProductWithMarkets, Supplier } from '@/lib/types';
@@ -51,15 +56,17 @@ export default function SuppliersPage() {
 
 
   // FETCH DATA
-  const { data: suppliers = [] } = useQuery<Supplier[]>({
+  const suppliersQuery = useQuery<Supplier[]>({
     queryKey: ['suppliers'],
     queryFn: fetchSuppliers,
   });
+  const { data: suppliers = [] } = suppliersQuery;
 
-  const { data: products = [] } = useQuery<ProductWithMarkets[]>({
+  const productsQuery = useQuery<ProductWithMarkets[]>({
     queryKey: ['products'],
     queryFn: fetchProducts,
   });
+  const { data: products = [] } = productsQuery;
 
 
 
@@ -72,23 +79,8 @@ export default function SuppliersPage() {
     return suppliers.filter((s) => (s.name ?? '').toLowerCase().includes(q));
   }, [suppliers, supplierSearch]);
 
-  const getSupplierAlertCount = (supplierId: string): number => {
-    return products.filter((p) => {
-      // Check if product belongs to this supplier
-      if (p.supplier_id !== supplierId) return false;
-
-      const markets = p.product_markets || [];
-      if (markets.length === 0) return false;
-
-      // Business Rule:
-      // - Only count products with "low" status (à racheter) - these need supplier purchase
-      // - "low" is GLOBAL: if product is "low" in any market, it means product doesn't exist in stock
-      // - Exclude products with "out" status (épuisé) - these can be transferred from another market
-      const hasLowStatus = markets.some((pm) => pm.status === 'low');
-      
-      return hasLowStatus;
-    }).length;
-  };
+  const getSupplierAlertCount = (supplierId: string): number =>
+    products.filter(product => product.supplier_id === supplierId && needsReplenishment(product)).length;
 
   const supplierProducts = useMemo(() => {
     if (!selectedSupplier) return [];
@@ -158,10 +150,11 @@ export default function SuppliersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       setDeleteConfirm({ isOpen: false, id: null });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       notify.success('Fournisseur supprimé avec succès');
     },
-    onError: (error: Error) => {
-      notify.error(error.message || 'Erreur lors de la suppression du fournisseur');
+    onError: () => {
+      notify.error('Suppression impossible. Vérifiez qu’aucun produit n’est associé à ce fournisseur.');
     },
   });
 
@@ -189,20 +182,20 @@ export default function SuppliersPage() {
   };
 
   const handleDeleteSupplier = (supplier: Supplier) => {
+    deletion.resetError();
     setDeleteConfirm({ isOpen: true, id: supplier.id });
   };
 
-  const handleConfirmDelete = () => {
-    if (deleteConfirm.id) {
-      deleteSupplierMutation.mutate(deleteConfirm.id);
-    }
-  };
+  const deletion = useAsyncAction('Suppression impossible. Vérifiez les produits associés à ce fournisseur.');
+  const handleConfirmDelete = () => deletion.run(async () => {
+    if (deleteConfirm.id) await deleteSupplierMutation.mutateAsync(deleteConfirm.id);
+  });
 
-  const handleSupplierSubmit = (data: { name: string; phone_number: string; email?: string }) => {
+  const handleSupplierSubmit = async (data: { name: string; phone_number: string; email?: string }) => {
     if (editingSupplier) {
-      updateSupplierMutation.mutate({ id: editingSupplier.id, data });
+      await updateSupplierMutation.mutateAsync({ id: editingSupplier.id, data });
     } else {
-      createSupplierMutation.mutate(data);
+      await createSupplierMutation.mutateAsync(data);
     }
   };
 
@@ -233,6 +226,8 @@ export default function SuppliersPage() {
 
 
 
+          <QueryFeedback queries={[suppliersQuery, productsQuery]} label="Chargement des fournisseurs…">
+          {filteredSuppliers.length === 0 && <EmptyState type="suppliers" title={supplierSearch ? 'Aucun résultat' : 'Aucun fournisseur'} description={supplierSearch ? 'Essayez une autre recherche.' : 'Ajoutez votre premier fournisseur.'} />}
           {/* Mobile Card View */}
           <div className="block md:hidden space-y-3">
             <AnimatePresence mode="popLayout">
@@ -249,11 +244,7 @@ export default function SuppliersPage() {
 
           {/* Desktop Table View */}
           <div className="hidden md:block">
-            {filteredSuppliers.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500">Aucun fournisseur trouvé</p>
-              </div>
-            ) : (
+            {filteredSuppliers.length > 0 && (
               <Card className="overflow-hidden border-0 shadow-sm rounded-2xl">
                 <div className="overflow-x-auto">
                   <Table>
@@ -272,7 +263,14 @@ export default function SuppliersPage() {
                           return (
                             <TableRow key={supplier.id} className="hover:bg-gray-50">
                               <TableCell className="font-medium text-gray-900 text-sm">
-                                {supplier.name}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSupplierClick(supplier)}
+                                  className="min-h-[44px] text-left hover:text-emerald-600"
+                                  aria-label={`Voir les produits à commander chez ${supplier.name}`}
+                                >
+                                  {supplier.name}
+                                </button>
                               </TableCell>
                               <TableCell className="text-gray-600 text-sm">
                                 <div className="space-y-1">
@@ -338,19 +336,22 @@ export default function SuppliersPage() {
               </Card>
             )}
           </div>
+          </QueryFeedback>
         </div>
       </main>
 
       <SupplierDrawer
+        key={selectedSupplier?.id ?? 'closed'}
         isOpen={isDrawerOpen && selectedSupplier !== null}
         supplier={selectedSupplier!}
+        suppliers={suppliers}
         products={supplierProducts}
         onClose={() => { setIsDrawerOpen(false); setSelectedSupplier(null); }}
         onEditSupplier={handleEditSupplierFromDrawer}
       />
 
       {/* Supplier Form Dialog */}
-      <SupplierFormDialog
+      {isFormDialogOpen && <SupplierFormDialog
         isOpen={isFormDialogOpen}
         onClose={() => {
           setIsFormDialogOpen(false);
@@ -358,10 +359,10 @@ export default function SuppliersPage() {
         }}
         onSubmit={handleSupplierSubmit}
         supplier={editingSupplier}
-      />
+      />}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirm.isOpen} onOpenChange={(open) => !open && setDeleteConfirm({ isOpen: false, id: null })}>
+      <AlertDialog open={deleteConfirm.isOpen} onOpenChange={(open) => !open && !deletion.isPending && setDeleteConfirm({ isOpen: false, id: null })}>
         <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
@@ -369,14 +370,15 @@ export default function SuppliersPage() {
               Êtes-vous sûr de vouloir supprimer ce fournisseur ? Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deletion.error && <p role="alert" className="text-sm text-red-600">{deletion.error}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletion.isPending} className="rounded-xl">Annuler</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmDelete}
+              onClick={event => { event.preventDefault(); void handleConfirmDelete(); }}
               className="rounded-xl bg-red-600 hover:bg-red-700"
               disabled={deleteSupplierMutation.isPending}
             >
-              {deleteSupplierMutation.isPending ? 'Suppression...' : 'Supprimer'}
+              {deletion.isPending ? <LoadingIndicator>Suppression…</LoadingIndicator> : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
