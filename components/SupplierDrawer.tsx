@@ -1,8 +1,7 @@
-import { useState, useMemo } from 'react';
-import { X, AlertTriangle, Phone, Mail, FileText, PhoneCall, Square, Search, Pencil } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { X, Check, CheckCheck, Phone, Mail, FileText, PhoneCall, Square, Search, Pencil, Loader2, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { generatePurchaseOrderPDF, sharePDF } from '@/components/PdfGenerator';
 import { notify } from '@/lib/utils/notify';
 import { ProductWithMarkets, Supplier } from '@/lib/types';
@@ -10,16 +9,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { formatReorderQuantity, getReorderDetails } from '@/lib/reorder';
 import { matchesProductSearch } from '@/lib/search';
+import AlternativeSupplierReminder from '@/components/AlternativeSupplierReminder';
 
-const statusConfig = {
-  low: {
-    label: 'À racheter',
-    color: 'bg-amber-100 text-amber-700 border-amber-200',
-    icon: AlertTriangle,
-  },
-};
 interface SupplierDrawerProps {
     supplier: Supplier;
+    suppliers?: Supplier[];
     products: ProductWithMarkets[];
     onClose: () => void;
     isOpen: boolean;
@@ -29,10 +23,11 @@ interface SupplierDrawerPropsWithEdit extends SupplierDrawerProps {
   onEditSupplier?: () => void;
 }
 
-export default function SupplierDrawer({ isOpen, supplier, products, onClose, onEditSupplier }: SupplierDrawerPropsWithEdit) {
+export default function SupplierDrawer({ isOpen, supplier, suppliers = [], products, onClose, onEditSupplier }: SupplierDrawerPropsWithEdit) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const queryClient = useQueryClient();
 
   const formatProductReorder = (product: ProductWithMarkets) => {
@@ -151,213 +146,216 @@ export default function SupplierDrawer({ isOpen, supplier, products, onClose, on
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
-          />
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        onOpenAutoFocus={(event) => {
+          // Keep the mobile keyboard closed until the user chooses to search.
+          event.preventDefault();
+          closeButtonRef.current?.focus();
+        }}
+        className="top-auto bottom-0 left-0 flex max-h-[calc(var(--vvh,100dvh)-0.5rem)] max-w-none translate-x-0 gap-0 overflow-hidden rounded-t-3xl rounded-b-none border-0 bg-white p-0 shadow-2xl sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-h-[min(42rem,calc(var(--vvh,100dvh)-2rem))] sm:max-w-xl sm:-translate-x-1/2 sm:rounded-2xl"
+      >
+        <div aria-hidden="true" className="flex shrink-0 justify-center pt-2.5 sm:hidden">
+          <div className="h-1 w-8 rounded-full bg-gray-200" />
+        </div>
 
-          {/* Drawer */}
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed bottom-16 left-0 right-0 z-50 bg-white rounded-t-3xl overflow-hidden"
-            style={{ maxHeight: '90vh' }}
-          >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-2">
-              <div className="w-10 h-1 rounded-full bg-gray-300" />
+        <header className="flex shrink-0 items-start gap-3 border-b border-gray-100 px-4 py-3 sm:px-5 sm:py-4">
+          <div aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-base font-semibold text-violet-700">
+            {supplier?.name?.charAt(0)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="break-words text-base leading-6 font-semibold text-gray-900">
+              {supplier?.name}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Consultez les produits à commander, marquez-les comme disponibles ou générez un bon de commande.
+            </DialogDescription>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+              {supplier?.phone_number && (
+                <a href={`tel:${supplier.phone_number}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-sm hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-violet-500">
+                  <Phone aria-hidden="true" className="size-3 shrink-0" />
+                  <span className="break-all">{supplier.phone_number}</span>
+                </a>
+              )}
+              {supplier?.email && (
+                <a href={`mailto:${supplier.email}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-sm hover:text-violet-700 focus-visible:outline-2 focus-visible:outline-violet-500">
+                  <Mail aria-hidden="true" className="size-3 shrink-0" />
+                  <span className="break-all">{supplier.email}</span>
+                </a>
+              )}
+            </div>
+          </div>
+          <div className="-my-1 -mr-1 flex shrink-0 items-center">
+            {onEditSupplier && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onEditSupplier}
+                aria-label="Modifier le fournisseur"
+                title="Modifier le fournisseur"
+                className="size-11 rounded-xl text-gray-500 hover:bg-violet-50 hover:text-violet-700"
+              >
+                <Pencil aria-hidden="true" className="size-4" />
+              </Button>
+            )}
+            <Button
+              ref={closeButtonRef}
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Fermer le fournisseur"
+              title="Fermer"
+              className="size-11 rounded-xl text-gray-500 hover:bg-gray-100"
+            >
+              <X aria-hidden="true" className="size-5" />
+            </Button>
+          </div>
+        </header>
+
+        <section aria-labelledby="supplier-products-heading" className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 space-y-3 px-4 pt-4 pb-3 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+              <h3 id="supplier-products-heading" className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                Produits à commander
+                <span aria-live="polite" className="rounded-md bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                  {searchQuery ? `${filteredProducts.length} / ${criticalProducts.length}` : criticalProducts.length}
+                </span>
+              </h3>
+              {filteredProducts.length > 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={handleMarkAllAsAvailable}
+                  aria-label="Tout marquer comme disponible"
+                  title="Tout marquer comme disponible"
+                  className="-mr-2 h-11 gap-1.5 rounded-lg px-2 text-xs text-violet-700 hover:bg-violet-50 hover:text-violet-800"
+                >
+                  <CheckCheck aria-hidden="true" className="size-3.5" />
+                  Tout disponible
+                </Button>
+              )}
             </div>
 
-            {/* Header */}
-            <div className="px-5 pb-4 border-b border-gray-100">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-200">
-                    <span className="text-white text-xl font-bold">
-                      {supplier?.name?.charAt(0)}
-                    </span>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {supplier?.name}
-                    </h2>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      {supplier?.phone_number && (
-                        <a href={`tel:${supplier.phone_number}`} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-                          <Phone className="w-3.5 h-3.5" />
-                          {supplier.phone_number}
-                        </a>
-                      )}
-                      {supplier?.email && (
-                        <a href={`mailto:${supplier.email}`} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-                          <Mail className="w-3.5 h-3.5" />
-                          {supplier.email}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {onEditSupplier && (
-                    <button 
-                      onClick={onEditSupplier}
-                      className="min-w-[44px] min-h-[44px] rounded-full bg-violet-100 flex items-center justify-center hover:bg-violet-200 transition-colors touch-manipulation active:scale-95"
-                      title="Modifier le fournisseur"
-                    >
-                      <Pencil className="w-5 h-5 text-violet-600" />
-                    </button>
-                  )}
-                  <button 
-                    onClick={onClose}
-                    className="min-w-[44px] min-h-[44px] rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors touch-manipulation active:scale-95"
-                  >
-                    <X className="w-5 h-5 text-gray-600" />
-                  </button>
-                </div>
+            {criticalProducts.length > 3 && (
+              <div className="relative">
+                <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="search"
+                  aria-label="Rechercher un produit à commander"
+                  placeholder="Nom ou référence du produit…"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50/70 pr-3 pl-9 text-base text-gray-900 placeholder:text-sm placeholder:text-gray-400 focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100 focus:outline-none sm:text-sm"
+                />
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Content */}
-            <div className="px-5 py-4" style={{ maxHeight: 'calc(85vh - 180px)' }}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-                  Produits à commander ({filteredProducts.length})
-                </h3>
-                {filteredProducts.length > 0 && (
-                  <button
-                    onClick={handleMarkAllAsAvailable}
-                    className="text-xs text-violet-600 hover:text-violet-700 font-medium"
-                  >
-                    Tout marquer comme disponible
-                  </button>
+          <div className="custom-scrollbar min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-5">
+            {filteredProducts.length === 0 ? (
+              <div role="status" className="flex flex-col items-center px-4 py-10 text-center">
+                <div className={`mb-3 flex size-11 items-center justify-center rounded-full ${criticalProducts.length ? 'bg-gray-100 text-gray-400' : 'bg-emerald-50 text-emerald-600'}`}>
+                  {criticalProducts.length ? <Search aria-hidden="true" className="size-5" /> : <PackageCheck aria-hidden="true" className="size-5" />}
+                </div>
+                <p className="text-sm font-medium text-gray-900">
+                  {criticalProducts.length ? 'Aucun produit trouvé' : 'Tous les produits sont en stock'}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {criticalProducts.length ? 'Essayez un autre nom ou une autre référence.' : 'Aucun produit à commander pour ce fournisseur.'}
+                </p>
+                {criticalProducts.length > 0 && (
+                  <Button variant="ghost" onClick={() => setSearchQuery('')} className="mt-2 h-11 text-violet-700">
+                    Effacer la recherche
+                  </Button>
                 )}
               </div>
+            ) : (
+              <ul aria-label="Produits à racheter" className="space-y-1.5">
+                {filteredProducts.map((product) => {
+                  const isUpdating = updatingProductId === product.id;
 
-              {/* Search */}
-              {criticalProducts.length > 3 && (
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher un produit..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full min-h-[40px] pl-10 pr-4 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                  />
-                </div>
-              )}
-
-              {filteredProducts.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                    <span className="text-3xl">✓</span>
-                  </div>
-                  <p className="text-gray-500">Tous les produits sont en stock</p>
-                </div>
-              ) : (
-                <div className="max-h-[300px] overflow-y-auto space-y-2 custom-scrollbar">
-                  {filteredProducts.map((product) => {
-                    const config = statusConfig.low;
-                    const Icon = config.icon;
-                    const isUpdating = updatingProductId === product.id;
-
-                    return (
-                      <div
-                        key={product.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <button
-                            onClick={() => handleMarkAsAvailable(product.id)}
-                            disabled={isUpdating}
-                            className="flex-shrink-0 min-w-[24px] min-h-[24px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Marquer comme disponible"
-                          >
-                            {isUpdating ? (
-                              <div className="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <Square className="w-6 h-6 text-gray-400 hover:text-amber-600 transition-colors" />
-                            )}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-medium text-gray-900 block truncate">{product.name}</span>
-                            {product.code && (
-                              <span className="text-xs text-gray-500 font-mono">{product.code}</span>
-                            )}
+                  return (
+                    <li key={product.id} className="rounded-xl border border-gray-100 bg-gray-50/60 transition-colors hover:border-gray-200 hover:bg-gray-50">
+                      <div className="flex items-center gap-1 py-2 pr-3 pl-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleMarkAsAvailable(product.id)}
+                          disabled={isUpdating}
+                          aria-label={`Marquer ${product.name} comme disponible`}
+                          title="Marquer comme disponible"
+                          className="group size-11 shrink-0 rounded-lg text-gray-400 hover:bg-emerald-50 hover:text-emerald-600"
+                        >
+                          {isUpdating ? (
+                            <Loader2 aria-hidden="true" className="size-5 animate-spin text-violet-600" />
+                          ) : (
+                            <>
+                              <Square aria-hidden="true" className="size-5 group-hover:hidden" />
+                              <Check aria-hidden="true" className="hidden size-5 group-hover:block" />
+                            </>
+                          )}
+                        </Button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm leading-5 font-medium break-words text-gray-900">{product.name}</p>
+                              {product.code && <p className="mt-0.5 font-mono text-xs leading-4 break-all text-gray-500">{product.code}</p>}
+                            </div>
+                            <span className="max-w-[45%] shrink-0 rounded-md border border-amber-100 bg-amber-50 px-2 py-1 text-right text-xs leading-4 font-semibold text-amber-800 tabular-nums">
+                              <span className="sr-only">À racheter : </span>
+                              {formatProductReorder(product)}
+                            </span>
                           </div>
-                        </div>
-                        <div className="ml-2 flex flex-shrink-0 flex-col items-end gap-1">
-                          <span className="text-sm font-bold text-gray-900">{formatProductReorder(product)}</span>
-                          <Badge variant="outline" className={`${config.color} border`}>
-                            {Icon && <Icon className="w-3 h-3 mr-1" />}
-                            {config.label}
-                          </Badge>
+                          <AlternativeSupplierReminder supplierIds={product.alternative_supplier_ids} primarySupplierId={product.supplier_id} suppliers={suppliers} />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </section>
 
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-gray-100 bg-white space-y-3">
-              {/* Call Supplier Button */}
+        <footer className="flex shrink-0 items-center gap-2 border-t border-gray-100 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-3">
+          <Button
+            variant="outline"
+            onClick={() => window.open(`tel:${supplier.phone_number}`, '_self')}
+            disabled={!supplier?.phone_number}
+            aria-label={supplier?.phone_number ? `Appeler ${supplier.name}` : 'Numéro non disponible'}
+            title={supplier?.phone_number ? `Appeler ${supplier.name}` : 'Numéro non disponible'}
+            className="h-11 min-w-11 rounded-xl border-emerald-200 px-3 text-emerald-700 shadow-none hover:bg-emerald-50 hover:text-emerald-800"
+          >
+            <PhoneCall aria-hidden="true" className="size-4" />
+            <span className="hidden min-[380px]:inline">Appeler</span>
+          </Button>
+          {filteredProducts.length > 0 && (
+            <>
               <Button
-                onClick={() => window.open(`tel:${supplier.phone_number}`, '_self')}
-                disabled={!supplier.phone_number}
-                className="w-full min-h-[56px] rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-lg shadow-emerald-200 transition-all touch-manipulation active:scale-[0.98]"
+                onClick={handleGeneratePDF}
+                disabled={isGeneratingPDF}
+                aria-label={isGeneratingPDF ? 'Génération du bon de commande' : 'Générer Bon de Commande'}
+                title="Générer Bon de Commande"
+                className="h-11 min-w-0 flex-1 rounded-xl bg-violet-600 px-3 text-sm font-semibold text-white shadow-none hover:bg-violet-700"
               >
-                <PhoneCall className="w-5 h-5 mr-2" />
-                {supplier.phone_number
-                  ? `Appeler ${supplier.name}`
-                  : 'Numéro non disponible'
-                }
+                {isGeneratingPDF ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <FileText aria-hidden="true" className="size-4" />}
+                <span className="truncate">{isGeneratingPDF ? 'Génération…' : 'Bon de commande'}</span>
               </Button>
-
-              {filteredProducts.length > 0 && (
-                <>
-                  <Button
-                    onClick={handleGeneratePDF}
-                    disabled={isGeneratingPDF}
-                    className="w-full min-h-[56px] rounded-2xl bg-violet-500 hover:bg-violet-600 text-white font-semibold text-base shadow-lg shadow-violet-200 transition-all touch-manipulation active:scale-[0.98]"
-                  >
-                    {isGeneratingPDF ? (
-                      <>
-                        <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Génération...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-5 h-5 mr-2" />
-                        Générer Bon de Commande
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={handleShareEmail}
-                    variant="outline"
-                    disabled={!supplier?.email || filteredProducts.length === 0}
-                    className="w-full min-h-[56px] rounded-2xl border-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-semibold text-base transition-all touch-manipulation active:scale-[0.98] disabled:opacity-50"
-                  >
-                    <Mail className="w-5 h-5 mr-2" />
-                    Envoyer par email
-                  </Button>
-                </>
-              )}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+              <Button
+                onClick={handleShareEmail}
+                variant="outline"
+                size="icon"
+                disabled={!supplier?.email}
+                aria-label="Envoyer par email"
+                title={supplier?.email ? 'Envoyer par email' : 'Email non disponible'}
+                className="size-11 rounded-xl border-gray-200 text-gray-600 shadow-none hover:bg-violet-50 hover:text-violet-700"
+              >
+                <Mail aria-hidden="true" className="size-4" />
+              </Button>
+            </>
+          )}
+        </footer>
+      </DialogContent>
+    </Dialog>
   );
 }

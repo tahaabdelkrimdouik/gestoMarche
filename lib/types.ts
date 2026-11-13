@@ -37,6 +37,7 @@ export type Product = {
 
 export type ProductWithMarkets = Product & {
   product_markets: ProductMarket[];
+  alternative_supplier_ids?: string[];
 };
 
 // Unités pour les lignes de commande

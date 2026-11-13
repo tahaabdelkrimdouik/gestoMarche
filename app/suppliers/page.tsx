@@ -272,7 +272,14 @@ export default function SuppliersPage() {
                           return (
                             <TableRow key={supplier.id} className="hover:bg-gray-50">
                               <TableCell className="font-medium text-gray-900 text-sm">
-                                {supplier.name}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSupplierClick(supplier)}
+                                  className="min-h-[44px] text-left hover:text-emerald-600"
+                                  aria-label={`Voir les produits à commander chez ${supplier.name}`}
+                                >
+                                  {supplier.name}
+                                </button>
                               </TableCell>
                               <TableCell className="text-gray-600 text-sm">
                                 <div className="space-y-1">
@@ -342,8 +349,10 @@ export default function SuppliersPage() {
       </main>
 
       <SupplierDrawer
+        key={selectedSupplier?.id ?? 'closed'}
         isOpen={isDrawerOpen && selectedSupplier !== null}
         supplier={selectedSupplier!}
+        suppliers={suppliers}
         products={supplierProducts}
         onClose={() => { setIsDrawerOpen(false); setSelectedSupplier(null); }}
         onEditSupplier={handleEditSupplierFromDrawer}
